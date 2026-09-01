@@ -1,4 +1,5 @@
 AI Vehicle Maintenance Assistant (Local LLM & RAG)
+
 본 프로젝트는 외부 유료 API나 복잡한 클라우드 인프라 의존성 없이, Docker 환경에서 로컬 LLM(Ollama - Llama 3 / Llava 멀티모달 비전 모델)과 RAG(Retrieval-Augmented Generation, LangChain, ChromaDB) 기술을 유기적으로 결합하여 구동되는 독립형 AI 차량 정비 어시스턴트 시스템입니다.
 
 단순한 텍스트 기반 챗봇을 넘어, 볼보(Volvo XC60)를 비롯한 다양한 브랜드와 차종의 소모품(에어컨 필터, 브레이크 패드, 와이퍼 등) 상태를 진단하고 공식 매뉴얼에 기반한 정확한 정비 가이드를 제공합니다. 향후 멀티 브랜드/차종 통합 확장부터 맞춤형 화이트 라벨 솔루션까지 무한히 확장할 수 있는 아키텍처로 설계되었습니다.
@@ -21,7 +22,7 @@ Role: Full-Stack Architecture Design & Local AI Pipeline Orchestration
 
 Language & Framework: Python, Streamlit, LangChain, ChromaDB
 
-AI Core: Ollama (Llama 3 / Llava 멀티모달 비전 모델)
+AI Core: Ollama (Llama 3 / Llava 멀티모달 비전 모델), YOLOv8 (커스텀 부품 감지)
 
 Containerization: Docker, Docker Compose
 
@@ -32,6 +33,8 @@ Containerization: Docker, Docker Compose
 
 정비 매뉴얼의 원본 Markdown(.md) 문서를 파싱하여 구조화된 JSON(.json) 데이터로 변환하는 스크립트(convert_to_json.py)와, 이를 ChromaDB 벡터 스토어에 임베딩 및 적재하는 파이프라인(ingest.py)을 분리 구축했습니다.
 
+구조화된 차량별 상세 JSON 스키마 도입 (data/volvo/xc60/): 단순 텍스트 매뉴얼을 넘어, 차량별 정비 가이드를 단계별(steps)로 체계화한 상세 JSON 스키마를 적용했습니다. 각 단계별로 설명(description), 경고(warning), 핵심 팁(key_point)뿐만 아니라 단일 또는 멀티 이미지 경로(image)를 매핑하여, 사용자가 직관적인 시각적 가이드를 확인할 수 있도록 데이터 구조를 고도화했습니다.
+
 브랜드/차종별 전용 폴더(data/브랜드명/차종명/)에 격리 관리함으로써 새로운 차종이나 소모품이 추가되더라도 메인 비즈니스 로직 수정 없이 데이터 인프라를 무한히 확장할 수 있습니다.
 
 임시 자원 격리 (temp_images/ & chroma_db/): 런타임 상에서 발생하는 멀티모달 이미지 임시 버퍼와 벡터 임베딩 저장소를 명확히 분리하여 파일 시스템의 무결성을 유지합니다.
@@ -41,7 +44,7 @@ Containerization: Docker, Docker Compose
 
 현재 상태: RAG 기반 정비 매뉴얼 텍스트 질의응답 및 로컬 환경 연동 구현 완료.
 
-고도화 방향: 사용자가 부품 사진을 업로드하면 멀티모달 AI(Llava)가 먼저 부품 종류(예: 에어컨 필터)를 시각적으로 식별하고, 해당 식별된 부품명을 키워드로 ChromaDB RAG 매뉴얼을 조회하여 교체 방법을 단계별(Step-by-step)로 정확히 안내받는 파이프라인을 구축했습니다.
+고도화 방향 및 구현 완료: 사용자가 부품 사진을 업로드하면 커스텀 학습된 YOLOv8 모델(best.pt)이 먼저 부품 종류(예: 에어컨 필터)를 시각적으로 식별하고, 이에 매칭되는 차량별 상세 JSON 가이드를 불러와 소요 시간, 필요 공구, 각 단계별(Step-by-step) 상세 이미지와 주의사항을 Streamlit UI에 유기적으로 렌더링하는 파이프라인을 구축했습니다.
 
 무중단 독립형 Docker 환경 구성: 외부 API 호출 실패나 네트워크 지연 리스크를 원천 차단하기 위해, Ollama 엔진과 Streamlit 웹 인터페이스를 도커 컨테이너로 묶어 어떤 로컬 PC 환경에서도 단일 명령어로 즉시 구동되도록 패키징했습니다.
 
@@ -64,7 +67,7 @@ AI 환각(Hallucination)으로 인한 오정비 방지
 
 분석: 일반 고객용 인터페이스와 사내 직원/정비사 전용 데이터베이스가 분리되지 않을 경우, 대외비 성격의 내부 정비 지침이나 사내 데이터가 유출될 위험이 있습니다.
 
-대응 전략: 사용자 권한(RBAC) 모델을 도입하여 고객용 뷰와 사내 임직원/교육용 뷰를 철저히 분리하고, 브랜드별 전용 지식베이스는 외부 접근을 원천 차단하는 데이터 격리 아키텍처를 설계에 반영합니다.
+대응 전략: 사용자 권한(RBAC) 모델을 도입하여 고객용 뷰와 사내 임직원/교육용 뷰를 철저히 분리하고, 브랜드별 전용 지식베이스는 외부 접근을 원천 차단하는 데이터 격리 아키텍처를 설계에 반영했습니다.
 
 6. 향후 확장 계획 및 비즈니스 모델 (Scalability)
 본 프로토타입 단계를 넘어, 실제 상용 서비스 전환 및 자동차 라이프사이클 생태계 확장을 위해 다음과 같은 단계별 고도화 아키텍처와 비즈니스 모델을 설계에 반영했습니다.
@@ -102,6 +105,7 @@ data/ 하위에 브랜드별·차종별 디렉터리(예: data/volvo/xc60/, data
 │   └── volvo/            # 브랜드 폴더
 │       └── xc60/         # 차종 폴더 (JSON, Markdown 매뉴얼 저장)
 ├── images/               # 서비스 구동용 이미지 리소스
+├── runs/                 # YOLOv8 커스텀 학습 모델 및 가중치 파일 저장소 (best.pt 포함)
 ├── temp_images/          # 업로드 이미지 임시 저장소 (자동 관리)
 ├── .dockerignore
 ├── .gitignore

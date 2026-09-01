@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['cabin_filter']
+
+roboflow:
+  workspace: -ygb04
+  project: automotive-maintenance-parts
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/-ygb04/automotive-maintenance-parts/dataset/2
