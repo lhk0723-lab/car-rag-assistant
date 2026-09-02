@@ -6,11 +6,11 @@ def main():
 
     # 2. 전이학습(Fine-tuning) 실행
     results = model.train(
-        data="datasets/cabin_filter/data.yaml",  # data.yaml 경로
-        epochs=50,                               # 데이터셋이 소량이므로 50 에포크 정도면 충분합니다
-        imgsz=640,                               # 이미지 크기
-        batch=4,                                 # 배치 사이즈
-        name="cabin_filter_result"               # 결과가 저장될 폴더 이름
+        data="C:/DIY/datasets/data.yaml",     # data.yaml의 실제 경로
+        epochs=50,                           # 학습 횟수
+        imgsz=640,                           # 이미지 크기
+        batch=4,                             # 배치 사이즈
+        name="car_part_result"               # 향후 다른 부품 추가까지 고려한 범용 결과 폴더 이름
     )
 
     print("학습이 완료되었습니다!")
