@@ -1,4 +1,3 @@
-# 파이썬 3.10 슬림 버전 사용
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -12,19 +11,18 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. 파이썬 라이브러리 설치
-COPY requirements.txt .
+# 2. 파이썬 패키지 먼저 설치 (캐싱 활용)
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 3. 💡 [핵심] 벡터 DB 생성에 필요한 데이터 파일과 스크립트를 먼저 복사!
-COPY data/ ./data/
-COPY ingest.py .
+# 3. 소스코드, 매뉴얼 데이터 및 이미지 폴더를 전부 컨테이너 내부로 복사
+COPY backend/ ./backend/
+COPY manual/ ./manual/
+COPY manual_images/ ./manual_images/   # <--- 이 부분을 추가해 줍니다!
 
-# 4. ⭐ 데이터나 ingest.py가 수정되었을 때만 벡터 DB를 다시 생성함!
-RUN python ingest.py
+# 4. 복사가 모두 끝난 후, backend/ingest.py를 실행하여 루트에 vector_db 생성
+RUN python backend/ingest.py
 
-# 5. 🚀 가장 마지막에 자주 수정되는 일반 소스코드(.py, .streamlit 등) 복사
-COPY . .
-
+# 5. Streamlit 앱 실행
 EXPOSE 8501
-CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "backend/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
