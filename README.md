@@ -74,30 +74,31 @@ AI 환각(Hallucination)으로 인한 오정비 방지
 
 7. 프로젝트 디렉터리 구조 (C:\DIY)
 
-C:\DIY\
+```text
+C:\DIY
 ├── .git
-├── backend/                  # 백엔드 소스코드 및 모듈
-│   ├── app.py                # Streamlit 기반 메인 웹 애플리케이션
-│   ├── main.py               # React 전환 및 API 연동을 위한 백엔드 API 서버 엔트리포인트
-│   ├── rag_module.py         # RAG 및 Vector DB 로드 모듈
-│   ├── vision_module.py      # YOLOv8 비전 분석 모듈 (프론트 와이퍼 등 추가 학습 적용)
-│   ├── utils.py              # 스마트 경로 매칭 및 공통 유틸리티
-│   ├── ingest.py             # 벡터 데이터베이스 빌드 스크립트
-│   ├── convert_to_json.py    # 문서 데이터 변환 스크립트
-│   ├── weights/              # 모델 가중치 파일 저장소 (best.pt 포함)
-│   └── requirements.txt      # 파이썬 패키지 의존성 목록 (opencv-python-headless 포함)
-├── frontend/                 # React 프론트엔드 확장 준비 폴더
-├── manual/                   # 소모품 매뉴얼 데이터 (브랜드/차종별 계층 관리)
+├── backend/ # 백엔드 소스코드 및 모듈
+│   ├── app.py # Streamlit 기반 메인 웹 애플리케이션
+│   ├── main.py # React 전환 및 API 연동을 위한 백엔드 API 서버 엔트리포인트
+│   ├── rag_module.py # RAG 및 Vector DB 로드 모듈
+│   ├── vision_module.py # YOLOv8 비전 분석 모듈 (프론트 와이퍼 등 추가 학습 적용)
+│   ├── utils.py # 스마트 경로 매칭 및 공통 유틸리티
+│   ├── ingest.py # 벡터 데이터베이스 빌드 스크립트
+│   ├── convert_to_json.py # 문서 데이터 변환 스크립트
+│   ├── weights/ # 모델 가중치 파일 저장소 (best.pt 포함)
+│   └── requirements.txt # 파이썬 패키지 의존성 목록 (opencv-python-headless 포함)
+├── frontend/ # React 프론트엔드 확장 준비 폴더
+├── manual/ # 소모품 매뉴얼 데이터 (브랜드/차종별 계층 관리)
 │   └── volvo/
-│       └── xc60/             # 볼보 XC60 정비 가이드 JSON 및 Markdown 파일
-├── manual_images/            # 부품 교체 가이드 단계별 상세 이미지 에셋 (air_cleaner, front_wiper 등)
-├── runs/                     # YOLOv8 커스텀 모델 학습 결과물 및 로그 저장소
-├── uploads_images/           # 사용자 부품 업로드 사진 임시 저장소 (런타임 생성)
-├── yolo_training_data/       # YOLOv8 학습용 데이터셋 (train, valid, data.yaml)
+│       └── xc60/ # 볼보 XC60 정비 가이드 JSON 및 Markdown 파일
+├── manual_images/ # 부품 교체 가이드 단계별 상세 이미지 에셋 (air_cleaner, front_wiper 등)
+├── runs/ # YOLOv8 커스텀 모델 학습 결과물 및 로그 저장소
+├── uploads_images/ # 사용자 부품 업로드 사진 임시 저장소 (런타임 생성)
+├── yolo_training_data/ # YOLOv8 학습용 데이터셋 (train, valid, data.yaml)
 ├── .dockerignore
 ├── .gitignore
-├── Dockerfile                # 도커 빌드 설정 파일 (manual_images 복사 포함)
-└── docker-compose.yml        # 도커 컴포즈 오케스트레이션 설정
+├── Dockerfile # 도커 빌드 설정 파일 (manual_images 복사 포함)
+└── docker-compose.yml # 도커 컴포즈 오케스트레이션 설정```
 
 8. 사전 준비 및 설치·실행 가이드
 
