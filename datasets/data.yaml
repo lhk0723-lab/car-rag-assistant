@@ -2,12 +2,12 @@ train: ../train/images
 val: ../valid/images
 test: ../test/images
 
-nc: 2
-names: ['air_cleaner', 'cabin_filter']
+nc: 3
+names: ['air_cleaner', 'cabin_filter', 'front_wiper']
 
 roboflow:
   workspace: -ygb04
   project: my-first-project-nw25w
-  version: 1
+  version: 2
   license: CC BY 4.0
-  url: https://universe.roboflow.com/-ygb04/my-first-project-nw25w/dataset/1
+  url: https://universe.roboflow.com/-ygb04/my-first-project-nw25w/dataset/2

@@ -9,7 +9,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # 1. JSON 매뉴얼 파일 로드
-json_file_path = "data/volvo/xc60/volvo_xc60_cabin_filter.json"
+json_file_path = "data/volvo/xc60/volvo_xc60_front_wiper.json"
 
 if not os.path.exists(json_file_path):
   print(
