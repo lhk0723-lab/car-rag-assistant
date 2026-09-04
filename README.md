@@ -75,30 +75,29 @@ AI 환각(Hallucination)으로 인한 오정비 방지
 7. 프로젝트 디렉터리 구조 (C:\DIY)
 
 ```text
-C:\DIY
+diy/ (최상위 루트)
 ├── .git
-├── backend/ # 백엔드 소스코드 및 모듈
-│   ├── app.py # Streamlit 기반 메인 웹 애플리케이션
-│   ├── main.py # React 전환 및 API 연동을 위한 백엔드 API 서버 엔트리포인트
-│   ├── rag_module.py # RAG 및 Vector DB 로드 모듈
-│   ├── vision_module.py # YOLOv8 비전 분석 모듈 (프론트 와이퍼 등 추가 학습 적용)
-│   ├── utils.py # 스마트 경로 매칭 및 공통 유틸리티
-│   ├── ingest.py # 벡터 데이터베이스 빌드 스크립트
-│   ├── convert_to_json.py # 문서 데이터 변환 스크립트
-│   ├── weights/ # 모델 가중치 파일 저장소 (best.pt 포함)
-│   └── requirements.txt # 파이썬 패키지 의존성 목록 (opencv-python-headless 포함)
-├── frontend/ # React 프론트엔드 확장 준비 폴더
-├── manual/ # 소모품 매뉴얼 데이터 (브랜드/차종별 계층 관리)
+├── backend/                  # FastAPI 백엔드 소스코드 및 모듈
+│   ├── main.py               # FastAPI 메인 API 서버 (tempfile 기반 메모리/임시 파일 처리)
+│   ├── rag_module.py         # RAG 및 Vector DB (ChromaDB) 로드 모듈
+│   ├── vision_module.py      # YOLOv8 비전 분석 모듈 (부품 자동 감지 및 신뢰도 검증)
+│   ├── weights/              # 모델 가중치 파일 저장소 (best.pt 포함)
+│   └── requirements.txt      # 파이썬 패키지 의존성 목록
+├── frontend/                 # React / Vite 프론트엔드 애플리케이션
+│   ├── src/                  # 프론트엔드 컴포넌트 및 UI 로직
+│   ├── package.json
+│   └── .gitignore
+├── manual/                   # 소모품 매뉴얼 데이터 (브랜드/차종별 계층 관리)
 │   └── volvo/
-│       └── xc60/ # 볼보 XC60 정비 가이드 JSON 및 Markdown 파일
-├── manual_images/ # 부품 교체 가이드 단계별 상세 이미지 에셋 (air_cleaner, front_wiper 등)
-├── runs/ # YOLOv8 커스텀 모델 학습 결과물 및 로그 저장소
-├── uploads_images/ # 사용자 부품 업로드 사진 임시 저장소 (런타임 생성)
-├── yolo_training_data/ # YOLOv8 학습용 데이터셋 (train, valid, data.yaml)
+│       └── xc60/             # 볼보 XC60 정비 가이드 JSON 데이터
+├── manual_images/            # 부품 교체 가이드 단계별 상세 이미지 에셋
+├── runs/                     # YOLOv8 커스텀 모델 학습 결과물 및 로그 저장소 (git 제외)
+├── vector_db/                # ChromaDB 벡터 스토어 데이터 저장소 (git 제외)
+├── yolo_training_data/       # YOLOv8 학습용 데이터셋 및 설정 (git 제외)
 ├── .dockerignore
-├── .gitignore
-├── Dockerfile # 도커 빌드 설정 파일 (manual_images 복사 포함)
-└── docker-compose.yml # 도커 컴포즈 오케스트레이션 설정
+├── .gitignore                # 루트 레벨 예외 처리 (AI 데이터, 런타임 캐시, .env 등)
+├── Dockerfile                # 도커 빌드 설정 파일
+└── docker-compose.yml        # docker-compose 오케스트레이션 설정
 ```
 
 8. 사전 준비 및 설치·실행 가이드
@@ -117,13 +116,30 @@ docker compose up --build
 
 docker exec -it ollama-server ollama run llava
 
-5. 웹 브라우저에서 아래 주소로 접속합니다.
-- 접속 주소: http://localhost:8501
+5. 프론트엔드 구동을 위해 frontend 폴더로 이동하여 패키지를 설치하고 개발 서버를 실행합니다.
+
+cd frontend
+npm install
+npm run dev
+
+6. 웹 브라우저에서 아래 주소로 접속합니다.
+
+- 접속 주소: http://localhost:5173/
 
 [ 재실행 시 (이미 환경 세팅이 완료된 경우) ]
-1. 프로젝트 루트 폴더 경로로 이동합니다.
-2. 아래 명령어를 입력하여 컨테이너를 백그라운드로 실행합니다. (모델 재다운로드 불필요)
+
+1. 프로젝트 루트 폴더 경로에서 백엔드를 백그라운드로 실행합니다.
 
 docker compose up -d
 
-3. 웹 브라우저(http://localhost:8501)로 접속합니다.
+2. frontend 폴더로 이동하여 프론트엔드 개발 서버를 실행합니다.
+
+cd frontend
+npm run dev
+
+3. 웹 브라우저(http://localhost:5173/)로 접속합니다.
+
+### 🚀 간편 실행 (스크립트 활용)
+프로젝트 루트 폴더에 포함된 실행 스크립트를 이용하면 자동으로 환경을 세팅하고 실행할 수 있습니다.
+- **Windows**: `run.bat` 실행
+- **Mac / Linux**: `./run.sh` 실행

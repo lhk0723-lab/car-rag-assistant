@@ -12,17 +12,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. 파이썬 패키지 먼저 설치 (캐싱 활용)
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt ./backend/
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
-# 3. 소스코드, 매뉴얼 데이터 및 이미지 폴더를 전부 컨테이너 내부로 복사
+# 3. 소스코드, 매뉴얼 데이터 및 이미지 폴더 복사
 COPY backend/ ./backend/
 COPY manual/ ./manual/
-COPY manual_images/ ./manual_images/   # <--- 이 부분을 추가해 줍니다!
+COPY manual_images/ ./manual_images/
 
-# 4. 복사가 모두 끝난 후, backend/ingest.py를 실행하여 루트에 vector_db 생성
-RUN python backend/ingest.py
-
-# 5. Streamlit 앱 실행
-EXPOSE 8501
-CMD ["streamlit", "run", "backend/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# 4. FastAPI 백엔드 서버 실행 (main.py)
+EXPOSE 8000
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

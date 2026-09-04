@@ -76,21 +76,6 @@ def parse_markdown_to_dict(md_text, file_stem=""):
     save_current_step()
     data["steps"] = parsed_steps
 
-    # [추가] 만약 마크다운에 키워드가 직접 명시되지 않았다면, 파일 이름(file_stem)을 기반으로 기본 키워드 자동 주입
-    if not data["keywords"] and file_stem:
-        stem_lower = file_stem.lower()
-        if "filter" in stem_lower or "cabin" in stem_lower or "air" in stem_lower:
-            if "cabin" in stem_lower or "실내" in stem_lower:
-                data["keywords"] = ["에어컨필터", "먼지필터", "캐빈필터", "실내필터", "cabin", "filter", "에어컨", "먼지"]
-            else:
-                data["keywords"] = ["에어크리너", "에어필터", "엔진에어", "크리너", "흡기", "air_cleaner", "aircleaner"]
-        elif "wiper" in stem_lower or "와이퍼" in stem_lower:
-            data["keywords"] = ["와이퍼", "블레이드", "와이퍼블레이드", "wiper", "blade"]
-        else:
-            data["keywords"] = [file_stem]
-
-    return data
-
 def convert_markdowns_to_json():
     # 실제 마크다운 파일이 위치한 절대 경로 지정
     markdown_dir = Path(r"C:\DIY\manual\volvo\xc60\markdown")

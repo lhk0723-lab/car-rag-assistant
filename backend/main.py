@@ -1,15 +1,16 @@
 import json
+import os
+import tempfile
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import shutil
 from pathlib import Path
 from typing import Optional
 
 # 기존 모듈에서 실제 함수 임포트
-from vision_module import analyze_image_with_yolov8, load_custom_model
-from rag_module import load_vector_db, get_rag_response
+from .vision_module import analyze_image_with_yolov8, load_custom_model
+from .rag_module import load_vector_db, get_rag_response
 
 app = FastAPI(title="Volvo XC60 AI Maintenance API", version="1.0")
 
@@ -24,8 +25,6 @@ app.add_middleware(
 
 # 경로 설정
 BASE_DIR = Path(__file__).resolve().parent
-TEMP_DIR = BASE_DIR / "uploads_images"
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # 1. manual_images 폴더 정적 서빙 마운트
 MANUAL_IMAGES_DIR = BASE_DIR.parent / "manual_images"
@@ -40,7 +39,7 @@ if not MANUALS_DIR.exists():
 yolo_model = load_custom_model()
 vector_store = load_vector_db()
 
-# 프론트엔드 텍스트 질문을 위한 Pydantic 모델 (선택적으로 부품 이름도 받을 수 있도록 확장)
+# 프론트엔드 텍스트 질문을 위한 Pydantic 모델
 class QueryRequest(BaseModel):
     message: str
     part_name: Optional[str] = None
@@ -67,27 +66,22 @@ def search_manual_comprehensive(user_query: str, part_name: Optional[str] = None
         return None
         
     query_lower = user_query.lower()
-    
-    # 1. 만약 진단된 부품 이름이 있거나 쿼리 내에 부품명이 포함된 경우 우선 매칭
     target_part = part_name.lower() if part_name else None
     
     for json_file in MANUALS_DIR.glob("*.json"):
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
             
-        file_stem = json_file.stem.lower() # 예: volvo_xc60_air_cleaner 등
+        file_stem = json_file.stem.lower()
         keywords = [kw.lower() for kw in data.get("keywords", [])]
         category = data.get("category", "").lower()
         
-        # 조건 1: 전달받은 인식 부품명이 파일명에 포함된 경우
         if target_part and target_part in file_stem:
             return data
             
-        # 조건 2: 사용자가 텍스트에 부품 파일명, 카테고리, 또는 내부 키워드를 직접 입력한 경우
         if file_stem in query_lower or any(kw in query_lower for kw in keywords) or any(word in query_lower for word in category.split()):
             return data
             
-        # 조건 3: 기존 키워드 단순 포함 검사
         for kw in keywords:
             if kw in query_lower:
                 return data
@@ -98,19 +92,24 @@ def search_manual_comprehensive(user_query: str, part_name: Optional[str] = None
 def root():
     return {"message": "Volvo XC60 Maintenance FastAPI Server is running."}
 
-# [기능 1] 이미지 업로드 및 YOLO 비전 진단
+# [기능 1] 이미지 업로드 및 YOLO 비전 진단 (임시 파일 자동 관리 방식)
 @app.post("/api/diagnose")
 async def diagnose_part(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Invalid image file format.")
     
-    file_path = TEMP_DIR / file.filename
+    temp_file_path = None
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        contents = await file.read()
         
+        # 안전한 임시 파일 생성
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
+            temp_file.write(contents)
+            temp_file_path = temp_file.name
+            
+        # YOLO 분석 실행
         detected_class_name, display_image, confidence, error_msg = analyze_image_with_yolov8(
-            str(file_path), yolo_model
+            temp_file_path, yolo_model
         )
         
         if error_msg:
@@ -119,11 +118,11 @@ async def diagnose_part(file: UploadFile = File(...)):
                 "message": error_msg
             }
         
-        # 🛑 신뢰도 90% 미만일 경우 학습되지 않은 부품으로 간주하고 차단 (임계값 90.0 적용)
+        # 신뢰도 90% 미만 차단
         if confidence < 90.0:
             return {
                 "success": False,
-                "message": "인식 신뢰도가 90% 미만이거나 등록되지 않은 부품입니다. 올바른 부품 사진을 업로드해주세요."
+                "message": f"인식 신뢰도({confidence:.1f}%)가 90% 미만이거나 등록되지 않은 부품입니다. 올바른 부품 사진을 업로드해주세요."
             }
         
         return {
@@ -135,12 +134,16 @@ async def diagnose_part(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+        
     finally:
-        if file_path.exists():
-            file_path.unlink()
+        # 임시 파일 확실하게 정리
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except Exception:
+                pass
 
-# [기능 2] 텍스트 질문으로 매뉴얼 텍스트 + 사진 가져오기 (직접 입력 및 부품 인식 연동 모두 지원)
+# [기능 2] 텍스트 질문으로 매뉴얼 가져오기
 @app.post("/api/chat")
 async def chat_manual(request: QueryRequest):
     user_query = request.message

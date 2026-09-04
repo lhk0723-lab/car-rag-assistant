@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  # 1. 스트림릿 앱 서비스
+  # 1. FastAPI 백엔드 앱 서비스
   app:
     build: .
     container_name: car-rag-app
     ports:
-      - "8501:8501"
+      - "8000:8000"  # ⭐ 8501을 8000으로 변경!
     environment:
-      - OLLAMA_HOST=http://ollama:11434   # ⭐ 이 주소로 Ollama 컨테이너와 통신
+      - OLLAMA_HOST=http://ollama:11434   # Ollama 컨테이너와 통신
     depends_on:
       - ollama
     restart: always
