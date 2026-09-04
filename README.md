@@ -98,7 +98,8 @@ C:\DIY
 ├── .dockerignore
 ├── .gitignore
 ├── Dockerfile # 도커 빌드 설정 파일 (manual_images 복사 포함)
-└── docker-compose.yml # 도커 컴포즈 오케스트레이션 설정```
+└── docker-compose.yml # 도커 컴포즈 오케스트레이션 설정
+```
 
 8. 사전 준비 및 설치·실행 가이드
 
