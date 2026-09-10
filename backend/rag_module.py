@@ -1,6 +1,5 @@
 import os
 import ollama
-import streamlit as st
 from pathlib import Path
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -8,7 +7,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 BASE_DIR = Path(__file__).resolve().parent.parent
 db_directory = str(BASE_DIR / "vector_db")
 
-@st.cache_resource
 def load_vector_db():
     if os.path.exists(db_directory):
         embeddings = HuggingFaceEmbeddings(

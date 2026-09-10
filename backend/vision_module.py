@@ -1,9 +1,7 @@
 import os
 from pathlib import Path
-import streamlit as st
 from ultralytics import YOLO
 
-@st.cache_resource
 def load_custom_model():
     # [실무 표준] 현재 이 파일(vision_module.py)의 절대 위치를 기준으로 기준점(BASE_DIR) 설정
     BASE_DIR = Path(__file__).resolve().parent

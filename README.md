@@ -16,20 +16,23 @@ B2B 및 서비스 생태계 관점의 가치 창출:
 
 2. 프로젝트 주요 특징 및 기술 스택
 - Role: Full-Stack Architecture Design & Local AI Pipeline Orchestration
-- Language & Framework: Python, Streamlit (React 전환 예정), LangChain, ChromaDB
+- Language & Framework: Python, FastAPI, React, Vite, Tailwind CSS, LangChain, ChromaDB
 - AI Core: Ollama (Llama 3 / Llava 멀티모달 비전 모델), YOLOv8 (프론트 와이퍼 등 커스텀 부품 감지 및 멀티 부품 가중치 최적화)
+- Database & Security: SQLite (app.db), SQLAlchemy, bcrypt 인증 모듈 연동
 - Containerization: Docker, Docker Compose
 
 3. 시스템 아키텍처 및 모듈화 구조 (Modular Architecture & Data Architecture)
 
 본 프로젝트는 차량 부품 데이터의 파편화를 방지하고 향후 다양한 브랜드 및 소모품 지속 확장에 유연하게 대응하기 위해, 데이터 소스와 서비스 로직을 완전히 분리한 모듈형 아키텍처로 설계되었습니다.
 
-소스코드 모듈화 구조 (backend/):
-- app.py: 기존 Streamlit 기반 메인 웹 인터페이스 (프로토타입 및 데모 제어용)
-- main.py: 향후 React 프론트엔드 연동 및 모던 웹 서비스 전환을 위해 백엔드 API 서버 용도로 새로 분리·구축한 엔트리포인트
+소스코드 모듈화 구조 (backend/ 및 frontend/):
+- main.py: FastAPI 기반의 모던 웹 서비스 백엔드 API 서버 엔트리포인트 (인증, 진단, 챗봇, 사용자 설정 관리 통합)
+- auth.py: SQLite 데이터베이스 및 bcrypt를 활용한 안전한 사용자 회원가입, 로그인 및 세션 보안 관리 모듈
+- database.py 및 models.py: SQLAlchemy 기반 데이터베이스 연결 세션 관리 및 유저 정보, 진단 이력 등 DB 스키마 모델 정의
 - vision_module.py: YOLOv8 기반 커스텀 부품 인식 및 시각적 진단 처리 (front_wiper 등 추가 학습 적용)
 - rag_module.py: ChromaDB 벡터 스토어 및 Ollama 기반 로컬 LLM 텍스트 RAG 파이프라인
 - utils.py: 스마트 파일명 우선 검색(Exact Match) 로직 및 데이터 유틸리티 처리 (부품 인식과 가이드 매칭 정확도 극대화)
+- frontend/: React와 Vite, Tailwind CSS, Lucide Icons를 기반으로 구축된 모던 반응형 사용자 인터페이스 (대시보드, 챗봇, 정비 진단, 설정 및 모달 관리)
 
 지식베이스 분리 및 파이프라인 (manual/ 및 yolo_training_data/):
 - 정비 매뉴얼의 원본 Markdown(.md) 문서를 파싱하여 구조화된 JSON(.json) 데이터로 변환하는 스크립트(convert_to_json.py)와, 이를 ChromaDB 벡터 스토어에 임베딩 및 적재하는 파이프라인(ingest.py)을 분리 구축했습니다.
@@ -38,13 +41,14 @@ B2B 및 서비스 생태계 관점의 가치 창출:
 
 도커라이징 및 환경 최적화:
 - opencv-python-headless 적용을 통해 리눅스 기반 컨테이너 환경에서 발생할 수 있는 GUI 의존성(libGL.so.1) 오류를 원천 차단하고 안정적인 비전 파이프라인을 구축했습니다.
-- 정비 가이드 상세 이미지 에셋(manual_images/)과 런타임 동적 데이터(uploads_images/, vector_db/, runs/)를 프로젝트 루트 레벨에서 안전하게 격리·관리하도록 구성했습니다.
+- 정비 가이드 상세 이미지 에셋(manual_images/)과 런타임 동적 데이터(uploads/, vector_db/, runs/)를 프로젝트 루트 레벨에서 안전하게 격리·관리하도록 구성했습니다.
+- requirements.txt에 FastAPI, Uvicorn, SQLAlchemy, PyJWT, bcrypt, python-multipart 등 모던 웹 서비스 구동을 위한 필수 패키지 의존성을 최신화하여 반영했습니다.
 
 4. 핵심 구현 기능 (Core Features)
 
-로컬 멀티모달 비전 정비 어시스턴트
+로컬 멀티모달 비전 정비 어시스턴트 및 대화형 RAG
 - 현재 상태: RAG 기반 정비 매뉴얼 텍스트 질의응답 및 로컬 환경 연동 구현 완료.
-- 고도화 방향 및 구현 완료: 사용자가 부품 사진을 업로드하면 커스텀 학습된 YOLOv8 모델(best.pt)이 프론트 와이퍼(front_wiper), 에어크리너 등 부품 종류를 정확하게 시각적으로 식별하고, 최적화된 파일 매칭 로직을 통해 이에 정확히 매칭되는 차량별 상세 JSON 가이드를 불러와 소요 시간, 필요 공구, 각 단계별(Step-by-step) 상세 이미지와 주의사항을 UI에 유기적으로 렌더링하는 파이프라인을 구축했습니다.
+- 고도화 방향 및 구현 완료: 사용자가 부품 사진을 업로드하면 커스텀 학습된 YOLOv8 모델(best.pt)이 프론트 와이퍼(front_wiper), 에어크리너 등 부품 종류를 정확하게 시각적으로 식별하고, 최적화된 파일 매칭 로직을 통해 이에 정확히 매칭되는 차량별 상세 JSON 가이드를 불러와 소요 시간, 필요 공구, 각 단계별(Step-by-step) 상세 이미지와 주의사항을 UI에 유기적으로 렌더링하는 파이프라인을 구축했습니다. 또한 확대 모달(ImageModal)을 통해 업로드 이미지 및 가이드 사진의 100%~500% 줌 및 드래그 탐색을 지원합니다.
 
 무중단 독립형 Docker 환경 구성
 - 외부 API 호출 실패나 네트워크 지연 리스크를 원천 차단하기 위해, Ollama 엔진과 웹 인터페이스를 도커 컨테이너로 묶어 어떤 로컬 PC 환경에서도 단일 명령어로 즉시 구동되도록 패키징했습니다.
@@ -65,7 +69,6 @@ AI 환각(Hallucination)으로 인한 오정비 방지
 
 6. 향후 확장 계획 및 비즈니스 모델 (Scalability)
 
-- React 기반 프론트엔드 확장 (예정): 기존 Streamlit(app.py) 구조에서 벗어나 모던 웹 서비스 환경 구축 및 사용자 경험(UX) 극대화를 위해, 새로 구축한 백엔드 API 서버 엔트리포인트(main.py)와 연동되는 React 프론트엔드(frontend/) 전환을 준비하고 있습니다.
 - 멀티 브랜드 및 다차종 데이터 확장 자동화 파이프라인: manual/ 하위에 브랜드별·차종별 디렉터리 체계를 구축하고, 초기 기동 시 마크다운 문서를 자동으로 파싱하여 벡터 DB에 동적 임베딩하는 자동 인덱싱 스크립트 파이프라인을 도입합니다.
 - 완성차 브랜드별 맞춤형 화이트 라벨(White-Label) 및 독립 생태계 구축: 특정 완성차 브랜드와의 전략적 협업을 통해 해당 브랜드 오너들만을 위한 전용 애플리케이션으로 패키징하여 공급합니다.
 - 차대번호(VIN) 기반 인앱 실시간 리콜 조회 시스템: 프로그램 내에서 차량번호 및 차대번호(VIN)를 직접 입력해 리콜 대상 여부와 공식 조치 가이드를 실시간으로 확인하는 기능을 구현합니다.
@@ -76,28 +79,65 @@ AI 환각(Hallucination)으로 인한 오정비 방지
 
 ```text
 diy/ (최상위 루트)
-├── .git
-├── backend/                  # FastAPI 백엔드 소스코드 및 모듈
-│   ├── main.py               # FastAPI 메인 API 서버 (tempfile 기반 메모리/임시 파일 처리)
-│   ├── rag_module.py         # RAG 및 Vector DB (ChromaDB) 로드 모듈
-│   ├── vision_module.py      # YOLOv8 비전 분석 모듈 (부품 자동 감지 및 신뢰도 검증)
-│   ├── weights/              # 모델 가중치 파일 저장소 (best.pt 포함)
-│   └── requirements.txt      # 파이썬 패키지 의존성 목록
-├── frontend/                 # React / Vite 프론트엔드 애플리케이션
-│   ├── src/                  # 프론트엔드 컴포넌트 및 UI 로직
-│   ├── package.json
-│   └── .gitignore
-├── manual/                   # 소모품 매뉴얼 데이터 (브랜드/차종별 계층 관리)
+├── .git/                           # Git 버전 관리 디렉토리
+├── backend/                        # FastAPI 백엔드 소스코드 및 모듈
+│   ├── weights/                    # 커스텀 학습 모델 가중치 폴더
+│   ├── app.db                      # SQLite 데이터베이스 파일
+│   ├── auth.py                     # 사용자 인증 및 보안 관련 모듈
+│   ├── convert_to_json.py          # 매뉴얼 데이터 변환 스크립트
+│   ├── database.py                 # 데이터베이스 연결 및 세션 설정
+│   ├── ingest.py                   # 벡터 DB(ChromaDB) 문서 적재 스크립트
+│   ├── main.py                     # FastAPI 메인 서버 및 API 엔드포인트
+│   ├── models.py                   # DB 스키마 및 데이터 모델 정의
+│   ├── rag_module.py               # RAG 검색 및 벡터 DB 연동 모듈
+│   ├── requirements.txt            # 파이썬 패키지 의존성 목록
+│   ├── train_yolo.py               # YOLO 모델 학습 실행 스크립트
+│   ├── utils.py                    # 공통 유틸리티 함수 모음
+│   ├── vision_module.py            # YOLOv8 비전 분석 및 감지 모듈
+│   └── yolov8n.pt                  # YOLO 기본 가중치 파일
+├── frontend/                       # React / Vite 프론트엔드 애플리케이션
+│   ├── public/                     # 정적 퍼블릭 에셋 파일
+│   ├── src/                        # 프론트엔드 소스코드
+│   │   ├── assets/                 # 이미지 및 스타일 자원
+│   │   ├── components/             # UI 컴포넌트 폴더
+│   │   │   ├── common/             # 공통 컴포넌트 (ImageModal.jsx 등)
+│   │   │   └── dashboard/          # 대시보드 탭별 컴포넌트 모음
+│   │   ├── hooks/                  # 커스텀 훅 폴더
+│   │   ├── pages/                  # 페이지 단위 컴포넌트 (DashboardPage.jsx, LoginPage.jsx)
+│   │   ├── services/               # API 통신 서비스 모듈
+│   │   ├── App.css                 # 애플리케이션 공통 스타일
+│   │   ├── App.jsx                 # 루트 컴포넌트
+│   │   ├── index.css               # 글로벌 CSS 설정
+│   │   └── main.jsx                # React 앱 진입점
+│   ├── .gitignore                  # 프론트엔드 예외 처리 설정
+│   ├── eslint.config.js            # ESLint 코드 린트 설정
+│   ├── index.html                  # HTML 문서 템플릿
+│   ├── package.json                # 노드 패키지 정보 및 의존성
+│   ├── package-lock.json           # 패키지 버전 고정 파일
+│   ├── README.md                   # 프론트엔드 설명서
+│   └── vite.config.js              # Vite 번들러 설정 파일
+├── manual/                         # 소모품 정비 매뉴얼 데이터
 │   └── volvo/
-│       └── xc60/             # 볼보 XC60 정비 가이드 JSON 데이터
-├── manual_images/            # 부품 교체 가이드 단계별 상세 이미지 에셋
-├── runs/                     # YOLOv8 커스텀 모델 학습 결과물 및 로그 저장소 (git 제외)
-├── vector_db/                # ChromaDB 벡터 스토어 데이터 저장소 (git 제외)
-├── yolo_training_data/       # YOLOv8 학습용 데이터셋 및 설정 (git 제외)
-├── .dockerignore
-├── .gitignore                # 루트 레벨 예외 처리 (AI 데이터, 런타임 캐시, .env 등)
-├── Dockerfile                # 도커 빌드 설정 파일
-└── docker-compose.yml        # docker-compose 오케스트레이션 설정
+│       └── xc60/                   # 볼보 XC60 정비 가이드 데이터
+│           ├── markdown/           # 마크다운 문서 원본
+│           │   ├── volvo_xc60_air_cleaner.md
+│           │   ├── volvo_xc60_cabin_filter.md
+│           │   └── volvo_xc60_front_wiper.md
+│           ├── volvo_xc60_air_cleaner.json
+│           ├── volvo_xc60_cabin_filter.json
+│           └── volvo_xc60_front_wiper.json
+├── manual_images/                  # 부품 교체 단계별 상세 이미지 에셋
+│   ├── air_cleaner/                # 에어 클리너 관련 이미지
+│   ├── cabin_filter/               # 캐빈 필터 관련 이미지
+│   └── front_wiper/                # 앞유리 와이퍼 관련 이미지
+├── runs/                           # YOLO 모델 학습 결과물 및 로그 (Git 제외)
+├── vector_db/                      # ChromaDB 벡터 스토어 데이터 저장소 (Git 제외)
+├── yolo_training_data/             # YOLO 학습용 데이터셋 및 설정 (Git 제외)
+├── .dockerignore                   # Docker 빌드 예외 처리 설정
+├── .gitignore                      # 루트 레벨 Git 예외 처리 설정
+├── Dockerfile                      # 도커 이미지 빌드 파일
+├── docker-compose.yml              # 도커 멀티 컨테이너 오케스트레이션 설정
+└── run.bat                         # 프로젝트 통합 실행 배치 스크립트
 ```
 
 8. 사전 준비 및 설치·실행 가이드

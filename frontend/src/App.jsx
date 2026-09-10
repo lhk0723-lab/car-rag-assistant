@@ -10,6 +10,9 @@ function App() {
         {/* 기본 루트 주소 (로그인 페이지) */}
         <Route path="/" element={<LoginPage />} />
         
+        {/* 로그아웃 시 이동하는 /login 경로 추가 */}
+        <Route path="/login" element={<LoginPage />} />
+        
         {/* 메인 정비 진단 페이지 주소 */}
         <Route path="/dashboard" element={<DashboardPage />} />
       </Routes>

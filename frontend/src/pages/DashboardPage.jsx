@@ -1,251 +1,327 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { Wrench, LogOut, Upload, AlertCircle, CheckCircle, Loader2, Send } from 'lucide-react';
+
+// 분리한 커스텀 훅 및 API 서비스 임포트
+import { useUserSession } from '../hooks/useUserSession';
+import { updateUserSetting, diagnosePart, sendChatMessage } from '../services/api';
+
+// 컴포넌트 임포트
+import Sidebar from '../components/dashboard/Sidebar';
+import Header from '../components/dashboard/Header';
+import AssistantTab from '../components/dashboard/AssistantTab';
+import ManualsTab from '../components/dashboard/ManualsTab';
+import HistoryTab from '../components/dashboard/HistoryTab';
+import SettingsTab from '../components/dashboard/SettingsTab';
+import ImageModal from '../components/common/ImageModal';
 
 export default function DashboardPage() {
-  const [selectedFile, setSelectedFile] = useState(null);
+  // 1. 커스텀 훅을 통한 세션 및 상태 관리
+  const { 
+    nickname, 
+    setNickname, 
+    carModel, 
+    setCarModel, 
+    diagnosisHistory, 
+    handleLogout, 
+    saveHistoryItem 
+  } = useUserSession();
+
+  const [activeTab, setActiveTab] = useState('assistant');
+  
+  const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  
+  // 💡 상태 충돌을 막기 위해 부품 기억 상태를 'lastActivePart' 하나로 완전 통합
+  const [lastActivePart, setLastActivePart] = useState(null); 
+  
+  // 💡 원본 초기 메시지 완벽 보존
+  const [messages, setMessages] = useState([
+    { sender: 'ai', text: `안녕하세요! NEXUS AI 정비 어시스턴트입니다.\n하단 입력창에서 부품 사진을 첨부하고 [부품 이름 확인] 버튼을 누르거나, 정비 가이드를 질문해 보세요.` }
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
+  
+  const [modalData, setModalData] = useState({ isOpen: false, list: [], index: 0 });
 
-  // 텍스트 질문 및 매뉴얼 관련 상태
-  const [chatInput, setChatInput] = useState('');
-  const [manualResult, setManualResult] = useState(null);
-  const [loadingChat, setLoadingChat] = useState(false);
+  const [manualQuery, setManualQuery] = useState('');
+  const [manualResults, setManualResults] = useState([]);
+  const [searchingManual, setSearchingManual] = useState(false);
 
-  // 파일 선택 시 실행
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setResult(null);
-      setError(null);
-      setManualResult(null); // 새 이미지 올리면 기존 매뉴얼 초기화
-    }
-  };
+  // 설정 탭 입력값 상태
+  const [newNickname, setNewNickname] = useState(nickname || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  // 백엔드로 이미지 전송 및 진단 요청 (1단계: 부품 인식만 수행)
-  const handleDiagnose = async () => {
-    if (!selectedFile) {
-      alert('진단할 부품 이미지를 선택해주세요.');
+  const [selectedBrand, setSelectedBrand] = useState('Volvo');
+  const [selectedModel, setSelectedModel] = useState('XC60');
+  const [selectedYear, setSelectedYear] = useState('2024');
+
+  const [slideIndexes, setSlideIndexes] = useState({});
+
+  // 2. 설정 저장 함수 (서비스 API 활용)
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    if (!newNickname.trim()) {
+      alert('닉네임을 입력해주세요.');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
+    if (newPassword && newPassword !== confirmPassword) {
+      alert('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.');
+      return;
+    }
 
-    setLoading(true);
-    setError(null);
-    setManualResult(null);
+    const updatedCarModel = `${selectedBrand} ${selectedModel} (${selectedYear})`;
 
     try {
-      const response = await axios.post('http://localhost:8000/api/diagnose', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUsername = savedUser.username || localStorage.getItem('username') || nickname;
+
+      const response = await updateUserSetting({
+        username: currentUsername,
+        current_password: currentPassword || null,
+        new_password: newPassword || null,
+        new_nickname: newNickname.trim()
       });
 
-      if (response.data.success) {
-        setResult(response.data);
-      } else {
-        setError(response.data.message || '진단에 실패했습니다.');
+      if (response.success) {
+        const updatedUser = {
+          ...savedUser,
+          username: currentUsername,
+          nickname: response.data.nickname
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        localStorage.setItem('nickname', response.data.nickname);
+        localStorage.setItem('carModel', updatedCarModel);
+
+        setNickname(response.data.nickname);
+        setCarModel(updatedCarModel);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+
+        alert('설정이 성공적으로 저장되었습니다.');
       }
     } catch (err) {
       console.error(err);
-      setError('서버 통신 중 오류가 발생했습니다. 백엔드 서버가 켜져 있는지 확인해주세요.');
+      const errorMsg = err.response?.data?.detail || err.message;
+      alert(`설정 저장 중 오류가 발생했습니다: ${errorMsg}`);
+    }
+  };
+
+  const handlePrevSlide = (key, maxLen) => {
+    setSlideIndexes(prev => {
+      const cur = prev[key] || 0;
+      const nextIdx = cur === 0 ? maxLen - 1 : cur - 1;
+      return { ...prev, [key]: nextIdx };
+    });
+  };
+
+  const handleNextSlide = (key, maxLen) => {
+    setSlideIndexes(prev => {
+      const cur = prev[key] || 0;
+      const nextIdx = cur === maxLen - 1 ? 0 : cur + 1;
+      return { ...prev, [key]: nextIdx };
+    });
+  };
+
+  const openImageModal = (imgList, index = 0) => {
+    const formattedList = imgList.map(img => img.startsWith('http') ? img : `http://localhost:8000/${img}`);
+    setModalData({ isOpen: true, list: formattedList, index });
+  };
+
+  const handleModalPrev = () => {
+    setModalData(prev => ({
+      ...prev,
+      index: prev.index === 0 ? prev.list.length - 1 : prev.index - 1
+    }));
+  };
+
+  const handleModalNext = () => {
+    setModalData(prev => ({
+      ...prev,
+      index: prev.index === prev.list.length - 1 ? 0 : prev.index + 1
+    }));
+  };
+
+  // 3. 메시지 전송 및 진단 처리 (단일 통합 상태 활용)
+  const handleSendMessage = async (e, forceAction = null) => {
+    if (e) e.preventDefault();
+    const actionType = forceAction || (selectedImage ? 'diagnose' : 'chat');
+
+    if (!inputMessage.trim() && !selectedImage) return;
+
+    const userText = inputMessage.trim();
+    const currentImagePreview = previewUrl;
+    const hasImage = !!selectedImage;
+
+    const newMsgList = [...messages, { 
+      sender: 'user', 
+      text: userText || '부품 이미지 확인을 요청했습니다.',
+      image: currentImagePreview 
+    }];
+    setMessages(newMsgList);
+
+    setInputMessage('');
+    setSelectedImage(null);
+    setPreviewUrl(null);
+    setLoading(true);
+
+    try {
+      if (hasImage || actionType === 'diagnose') {
+        const formData = new FormData();
+        if (selectedImage) formData.append('file', selectedImage);
+
+        const diagData = await diagnosePart(formData);
+
+        if (diagData.success && diagData.detected_part) {
+          const partName = diagData.detected_part;
+          setLastActivePart(partName); // 💡 이미지 진단 성공 시 최신 부품으로 갱신
+          
+          const aiResponseText = `🔍 [부품 인식 결과] 업로드하신 부품은 **${partName}**로 확인되었습니다. (${carModel} 맞춤)\n교체 방법을 원하시면 "${partName} 교체 방법"이라고 입력해 주세요!`;
+          setMessages([...newMsgList, { sender: 'ai', text: aiResponseText }]);
+
+          saveHistoryItem({ type: '부품 진단', title: partName, date: new Date().toLocaleString(), image: currentImagePreview, detailText: aiResponseText });
+        } else {
+          setMessages([...newMsgList, { sender: 'ai', text: diagData.message || '부품을 명확히 인식하지 못했습니다.' }]);
+        }
+      } else {
+        // 💡 가장 최근에 기억된 부품(lastActivePart)과 차종(carModel)을 함께 전송
+        const chatData = await sendChatMessage(userText, lastActivePart || undefined, carModel);
+
+        if (chatData.success && chatData.manual_data) {
+          const manual = chatData.manual_data;
+          
+          // 💡 텍스트 질의/검색으로 새로운 부품/카테고리가 매칭되었다면 최신 값으로 즉시 덮어쓰기
+          if (chatData.matched_category) {
+            setLastActivePart(chatData.matched_category);
+          }
+          
+          const manualMsg = { 
+            sender: 'ai', 
+            type: 'manual', 
+            title: manual.title || chatData.matched_category || userText,
+            steps: manual.steps || []
+          };
+          setMessages([...newMsgList, manualMsg]);
+          saveHistoryItem({ type: '정비 가이드', title: userText, date: new Date().toLocaleString(), manualData: manualMsg });
+        } else {
+          const plainText = chatData.message || '답변을 생성하지 못했습니다.';
+          setMessages([...newMsgList, { sender: 'ai', text: plainText }]);
+          saveHistoryItem({ type: '일반 문의', title: userText, date: new Date().toLocaleString(), detailText: plainText });
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages([...newMsgList, { sender: 'ai', text: `[오류 발생] ${err.message}` }]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 2단계: 텍스트 질문 전송 (인식된 부품 이름 part_name을 함께 전달)
-  const handleChatSubmit = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  // 4. 매뉴얼 검색 실행 (car_model 함께 전달)
+  const executeManualSearch = async (queryKeyword) => {
+    const keyword = (queryKeyword || manualQuery).trim();
+    if (!keyword) return;
 
-    setLoadingChat(true);
+    setManualQuery(keyword);
+    setSearchingManual(true);
     try {
-      const response = await axios.post('http://localhost:8000/api/chat', {
-        message: chatInput,
-        part_name: result ? result.detected_part : null, // 👈 인식된 부품명(예: air_cleaner) 동반 전송
-      });
-
-      if (response.data.success) {
-        setManualResult(response.data.manual_data);
+      const data = await sendChatMessage(keyword, undefined, carModel);
+      if (data.success && data.manual_data) {
+        setManualResults([data.manual_data]);
+        saveHistoryItem({ type: '매뉴얼 검색', title: keyword, date: new Date().toLocaleString(), detailText: data.manual_data.title });
       } else {
-        alert(response.data.message || '관련 매뉴얼을 찾지 못했습니다.');
-        setManualResult(null);
+        setManualResults([{ title: `${keyword} 가이드`, steps: [{ step_number: 1, description: data.message || '관련 매뉴얼 조각을 찾지 못했습니다.' }] }]);
       }
     } catch (err) {
       console.error(err);
       alert('매뉴얼 검색 중 오류가 발생했습니다.');
     } finally {
-      setLoadingChat(false);
+      setSearchingManual(false);
     }
   };
 
-  // 로그아웃 시 로그인 페이지로 이동
-  const handleLogout = () => {
-    navigate('/');
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      {/* 상단 네비게이션 바 */}
-      <header className="flex justify-between items-center px-8 py-4 bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center space-x-3">
-          <Wrench className="w-6 h-6 text-blue-500" />
-          <span className="text-xl font-bold">Volvo XC60 AI 어시스턴트</span>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition duration-200"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>로그아웃</span>
-        </button>
-      </header>
+    <div className="flex h-screen bg-[#090d16] text-gray-100 font-sans overflow-hidden">
+      
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} carModel={carModel} />
 
-      {/* 메인 콘텐츠 영역 */}
-      <main className="flex-1 p-8 max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* 좌측: 이미지 업로드 및 진단 요청 */}
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 flex flex-col justify-between">
-          <div>
-            <h2 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-              <Upload className="w-5 h-5 text-blue-400" />
-              <span>부품 이미지 업로드</span>
-            </h2>
+      <div className="flex-1 flex flex-col min-w-0">
+        
+        <Header carModel={carModel} nickname={nickname} handleLogout={handleLogout} />
 
-            <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition duration-200 relative">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="max-h-64 mx-auto rounded-lg object-contain"
-                />
-              ) : (
-                <div className="py-12 text-gray-400">
-                  <p>클릭하거나 이미지를 여기에 드래그하세요</p>
-                  <p className="text-xs text-gray-500 mt-1">PNG, JPG 지원</p>
-                </div>
-              )}
-            </div>
-          </div>
+        <main className="flex-1 p-6 flex flex-col overflow-hidden bg-[#090d16]">
+          
+          {activeTab === 'assistant' && (
+            <AssistantTab 
+              carModel={carModel}
+              messages={messages}
+              loading={loading}
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              previewUrl={previewUrl}
+              setSelectedImage={setSelectedImage}
+              setPreviewUrl={setPreviewUrl}
+              handleSendMessage={handleSendMessage}
+              openImageModal={openImageModal}
+              slideIndexes={slideIndexes}
+              handlePrevSlide={handlePrevSlide}
+              handleNextSlide={handleNextSlide}
+              setSlideIndexes={setSlideIndexes}
+            />
+          )}
 
-          <button
-            onClick={handleDiagnose}
-            disabled={loading || !selectedFile}
-            className={`mt-6 w-full py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 transition duration-200 ${
-              loading || !selectedFile
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-            <span>{loading ? 'AI 부품 분석 중...' : '부품 진단 시작하기'}</span>
-          </button>
-        </div>
+          {activeTab === 'manuals' && (
+            <ManualsTab 
+              carModel={carModel}
+              manualQuery={manualQuery}
+              setManualQuery={setManualQuery}
+              executeManualSearch={executeManualSearch}
+              searchingManual={searchingManual}
+              manualResults={manualResults}
+              slideIndexes={slideIndexes}
+              handlePrevSlide={handlePrevSlide}
+              handleNextSlide={handleNextSlide}
+              setSlideIndexes={setSlideIndexes}
+              openImageModal={openImageModal}
+            />
+          )}
 
-        {/* 우측: 진단 결과 및 대화형 매뉴얼 가이드 */}
-        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 flex flex-col">
-          <h2 className="text-lg font-semibold mb-4">AI 진단 및 매뉴얼 결과</h2>
+          {activeTab === 'history' && (
+            <HistoryTab diagnosisHistory={diagnosisHistory} />
+          )}
 
-          <div className="flex-1 bg-gray-900 rounded-lg p-4 border border-gray-700 overflow-y-auto flex flex-col justify-between">
-            <div>
-              {error && (
-                <div className="flex items-center space-x-2 text-red-400 bg-red-950/50 p-3 rounded-lg border border-red-800 mb-4">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span className="text-sm">{error}</span>
-                </div>
-              )}
+          {activeTab === 'settings' && (
+            <SettingsTab 
+              newNickname={newNickname}
+              setNewNickname={setNewNickname}
+              selectedBrand={selectedBrand}
+              setSelectedBrand={setSelectedBrand}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+              selectedYear={selectedYear}
+              setSelectedYear={setSelectedYear}
+              currentPassword={currentPassword}
+              setCurrentPassword={setCurrentPassword}
+              newPassword={newPassword}
+              setNewPassword={setNewPassword}
+              confirmPassword={confirmPassword}
+              setConfirmPassword={setConfirmPassword}
+              handleSaveSettings={handleSaveSettings}
+            />
+          )}
 
-              {result ? (
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2 text-green-400 bg-green-950/50 p-3 rounded-lg border border-green-800">
-                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                    <span className="text-sm font-semibold">부품 인식 성공</span>
-                  </div>
+        </main>
+      </div>
 
-                  <div>
-                    <span className="text-xs text-gray-400">인식된 부품</span>
-                    <p className="text-lg font-bold text-blue-400">{result.detected_part || '알 수 없음'}</p>
-                    <p className="text-xs text-gray-500">신뢰도: {result.confidence.toFixed(1)}%</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="py-8 text-gray-500 text-sm text-center">
-                  이미지를 업로드하고 진단을 시작하면<br />인식된 부품 이름이 여기에 표시됩니다.
-                </div>
-              )}
+      <ImageModal 
+        modalData={modalData} 
+        setModalData={setModalData} 
+        handleModalPrev={handleModalPrev} 
+        handleModalNext={handleModalNext} 
+      />
 
-              {/* 매뉴얼 텍스트 + 단계별 사진 출력 영역 */}
-              {manualResult && (
-                <div className="mt-6 border-t border-gray-800 pt-4 space-y-4">
-                  <h3 className="text-sm font-bold text-blue-400">📌 {manualResult.category}</h3>
-                  {manualResult.steps && manualResult.steps.map((step) => (
-                    <div key={step.step_number} className="bg-gray-800 p-3 rounded-lg border border-gray-700 space-y-2">
-                      <p className="text-xs font-semibold text-gray-300">
-                        Step {step.step_number}: {step.title}
-                      </p>
-                      <p className="text-xs text-gray-400 leading-relaxed">{step.description}</p>
-                      
-                      {/* 단계별 이미지 출력 */}
-                      {step.image && (
-                        <div className="flex gap-2 flex-wrap mt-2">
-                          {Array.isArray(step.image) ? (
-                            step.image.map((imgUrl, idx) => (
-                              <img
-                                key={idx}
-                                src={imgUrl}
-                                alt={`step-${step.step_number}-${idx}`}
-                                className="w-24 h-20 object-cover rounded border border-gray-600"
-                              />
-                            ))
-                          ) : (
-                            <img
-                              src={step.image}
-                              alt={`step-${step.step_number}`}
-                              className="w-24 h-20 object-cover rounded border border-gray-600"
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* 하단 텍스트 질문 입력 폼 */}
-            <form onSubmit={handleChatSubmit} className="mt-6 flex gap-2 pt-3 border-t border-gray-800">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="예: 어떻게 교체해?"
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-              />
-              <button
-                type="submit"
-                disabled={loadingChat}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center transition duration-200"
-              >
-                {loadingChat ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </button>
-            </form>
-          </div>
-        </div>
-      </main>
     </div>
   );
 }
