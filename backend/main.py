@@ -6,13 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from .database import engine, Base, get_db
-from .models import User, DiagnosisHistory  # ⭐ DiagnosisHistory 모델 임포트 추가
+from .models import User, DiagnosisHistory
 
-# 1. FastAPI 앱 인스턴스 생성 (타이틀과 버전 포함)
+# 1. FastAPI 앱 인스턴스 생성
 app = FastAPI(title="Volvo XC60 AI Maintenance API", version="1.0")
 
 # 2. 서버 시작 시 데이터베이스 테이블 자동 생성
@@ -44,7 +44,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MANUAL_IMAGES_DIR = BASE_DIR.parent / "manual_images"
 app.mount("/manual_images", StaticFiles(directory=str(MANUAL_IMAGES_DIR)), name="manual_images")
 
-# ⭐ 2. backend/uploads 폴더 생성 및 정적 서빙 마운트 (이미지 영구 저장용)
+# 2. backend/uploads 폴더 생성 및 정적 서빙 마운트
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -63,8 +63,9 @@ class QueryRequest(BaseModel):
     message: str
     part_name: Optional[str] = None
     car_model: Optional[str] = None
+    username: Optional[str] = None
 
-# 사용자 설정 변경을 위한 Pydantic 모델 (username 필드 포함)
+# 사용자 설정 변경을 위한 Pydantic 모델
 class UserUpdateRequest(BaseModel):
     username: str
     current_nickname: Optional[str] = None
@@ -72,6 +73,11 @@ class UserUpdateRequest(BaseModel):
     current_password: Optional[str] = None
     new_password: Optional[str] = None
     car_model: Optional[str] = None
+
+# 다중 이력 삭제를 위한 Pydantic 모델 추가
+class DeleteHistoryRequest(BaseModel):
+    username: str
+    history_ids: List[int]
 
 # 매뉴얼 스텝 내의 상대 경로 이미지들을 웹 URL로 변환해주는 함수
 def format_manual_images(manual_data):
@@ -97,15 +103,13 @@ def search_manual_comprehensive(user_query: str, part_name: Optional[str] = None
     query_lower = user_query.lower()
     json_files = list(MANUALS_DIR.rglob("*.json"))
     
-    if car_model and part_name:
-        base_model = car_model.split("(")[0].strip()
-        clean_car_model = base_model.lower().replace(" ", "_")
-        target_filename = f"{clean_car_model}_{part_name.lower()}.json"
-        target_file_path = MANUALS_DIR / target_filename
-        
-        if target_file_path.exists():
-            with open(target_file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+    # 1. part_name이 명확히 제공된 경우 파일명 직접 매칭 시도
+    if part_name:
+        clean_part = part_name.lower().replace(" ", "_")
+        for json_file in json_files:
+            if clean_part in json_file.stem.lower():
+                with open(json_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
 
     best_match = None
     max_score = 0
@@ -132,9 +136,6 @@ def search_manual_comprehensive(user_query: str, part_name: Optional[str] = None
                 score += len(kw_lower) + 20
                 matched_keywords_count += 1
                 
-        if matched_keywords_count == 0 and file_stem not in query_lower and category not in query_lower:
-            score = 0
-            
         if score > max_score:
             max_score = score
             best_match = data
@@ -158,22 +159,13 @@ def search_manual_comprehensive(user_query: str, part_name: Optional[str] = None
             except Exception:
                 continue
 
-    generic_keywords = ["교체", "방법", "어떻게", "알려줘", "순서", "해줘", "보여줘", "설명", "가이드", "정비", "와", "의", "를", "은", "는", "교환"]
-    query_words = [w for w in query_lower.replace("?", "").replace("!", "").split() if w not in generic_keywords and len(w) > 1]
-    
-    if len(query_words) > 0:
-        return None
-
-    if max_score > 0 and best_match:
-        return best_match
-        
-    return None
+    return best_match if max_score > 0 else None
 
 @app.get("/")
 def root():
     return {"message": "Volvo XC60 AI Maintenance API is running."}
 
-# [기능 1] 이미지 업로드 및 YOLO 비전 진단 (⭐ 수정: uploads 폴더 영구 저장 및 DB 이력 기록 추가)
+# [기능 1] 이미지 업로드 및 YOLO 비전 진단
 @app.post("/api/diagnose")
 async def diagnose_part(
     file: UploadFile = File(...),
@@ -188,12 +180,10 @@ async def diagnose_part(
     try:
         contents = await file.read()
         
-        # 1. YOLO 분석용 임시 파일 생성
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
             temp_file.write(contents)
             temp_file_path = temp_file.name
             
-        # 2. backend/uploads 폴더에 파일 영구 물리 저장
         import time
         safe_filename = f"{int(time.time())}_{file.filename}"
         permanent_file_path = UPLOAD_DIR / safe_filename
@@ -202,7 +192,6 @@ async def diagnose_part(
             
         saved_file_url = f"/uploads/{safe_filename}"
 
-        # 3. YOLO 모델 분석 실행
         detected_class_name, display_image, confidence, error_msg = analyze_image_with_yolov8(
             temp_file_path, yolo_model
         )
@@ -216,9 +205,8 @@ async def diagnose_part(
                 "message": f"인식 신뢰도({confidence:.1f}%)가 90% 미만이거나 등록되지 않은 부품입니다. 올바른 부품 사진을 업로드해주세요."
             }
         
-        response_message = f"업로드하신 부품은 해당 차량의 {detected_class_name}입니다. 교체 방법을 원하시면 \"{detected_class_name} 교체 방법 알려줘\"라고 입력해 주세요!"
+        response_message = f"업로드하신 부품은 해당 차량의 {detected_class_name}입니다. 교체 방법을 원하시면 \"교체 방법\"이라고 입력해 주세요!"
 
-        # 4. SQLite (app.db) DB에 진단 이력 및 이미지 경로(image_url) 저장
         if username:
             db_history = DiagnosisHistory(
                 username=username,
@@ -234,7 +222,7 @@ async def diagnose_part(
             "success": True,
             "detected_part": detected_class_name,
             "confidence": confidence,
-            "image_url": saved_file_url,  # 프론트엔드 모달 확대용 경로 전달
+            "image_url": saved_file_url,
             "message": response_message
         }
 
@@ -250,13 +238,36 @@ async def diagnose_part(
 
 # [기능 2] 텍스트 질문으로 매뉴얼 가져오기
 @app.post("/api/chat")
-async def chat_manual(request: QueryRequest):
+async def chat_manual(request: QueryRequest, db: Session = Depends(get_db)):
     user_query = request.message
     part_name = request.part_name
     car_model = request.car_model
     
     raw_manual = search_manual_comprehensive(user_query, part_name, car_model)
     
+    if not raw_manual:
+        response_message = "입력하신 부품이나 관련된 정비 매뉴얼을 찾지 못했습니다."
+    else:
+        matched_title = raw_manual.get("title", part_name or user_query)
+        response_message = f"'{matched_title}' 정비 가이드를 조회했습니다."
+
+    if request.username:
+        history_title = raw_manual.get("title") if raw_manual else None
+        if not history_title:
+            history_title = part_name if part_name else user_query
+            
+        stored_part = history_title
+
+        db_history = DiagnosisHistory(
+            username=request.username,
+            detected_part=stored_part,
+            confidence="텍스트 검색",
+            image_url=None, 
+            message=response_message
+        )
+        db.add(db_history)
+        db.commit()
+
     if not raw_manual:
         return {
             "success": False,
@@ -271,7 +282,7 @@ async def chat_manual(request: QueryRequest):
         "manual_data": formatted_manual
     }
 
-# [기능 3] 사용자 정보(닉네임, 비밀번호, 차량 모델) 수정 API
+# [기능 3] 사용자 정보 수정 API
 @app.post("/api/user/update")
 async def update_user_settings(request: UserUpdateRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == request.username).first()
@@ -279,7 +290,6 @@ async def update_user_settings(request: UserUpdateRequest, db: Session = Depends
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     
-    # 2. 비밀번호 변경 요청 처리
     if request.new_password:
         if not request.current_password:
             raise HTTPException(status_code=400, detail="현재 비밀번호를 입력해주세요.")
@@ -293,7 +303,6 @@ async def update_user_settings(request: UserUpdateRequest, db: Session = Depends
             except Exception:
                 raise HTTPException(status_code=400, detail="현재 비밀번호가 일치하지 않습니다.")
 
-        # 새로운 비밀번호 설정
         try:
             import bcrypt
             hashed_pw = bcrypt.hashpw(request.new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -305,14 +314,12 @@ async def update_user_settings(request: UserUpdateRequest, db: Session = Depends
             if hasattr(user, "password"):
                 user.password = request.new_password
 
-    # 3. 닉네임 변경 요청 처리
     if request.new_nickname:
         if hasattr(user, "nickname"):
             user.nickname = request.new_nickname
         elif hasattr(user, "username"):
             user.username = request.new_nickname
 
-    # 4. 차량 모델 변경 요청 처리
     if request.car_model and hasattr(user, "car_model"):
         user.car_model = request.car_model
 
@@ -322,26 +329,24 @@ async def update_user_settings(request: UserUpdateRequest, db: Session = Depends
     updated_nickname = getattr(user, "nickname", None) or getattr(user, "username", request.new_nickname)
     updated_car_model = getattr(user, "car_model", request.car_model)
 
-    # ✅ 프론트엔드(DashboardPage.jsx)의 response.data.nickname 접근 방식에 맞춤
     return {
         "success": True,
         "message": "설정이 성공적으로 업데이트되었습니다.",
         "nickname": updated_nickname,
-        "car_model": updated_car_model
+        "car_model": updated_car_model,
+        "username": user.username
     }
 
-# [기능 4] 로그인한 사용자의 진단 및 채팅 이력 조회 API (⭐ 새로 추가)
+# [기능 4] 로그인한 사용자의 진단 및 채팅 이력 조회 API
 @app.get("/api/history")
 async def get_user_history(username: str, db: Session = Depends(get_db)):
     try:
-        # 해당 유저의 이력을 최신순으로 조회
         histories = db.query(DiagnosisHistory).filter(
             DiagnosisHistory.username == username
         ).order_by(DiagnosisHistory.created_at.desc()).all()
         
         history_list = []
         for h in histories:
-            # 프론트엔드 모달/화면에서 바로 로드할 수 있도록 절대 경로(URL)로 변환
             img_url = h.image_url
             if img_url and not img_url.startswith("http"):
                 img_url = f"http://localhost:8000{img_url}"
@@ -360,4 +365,45 @@ async def get_user_history(username: str, db: Session = Depends(get_db)):
             "history": history_list
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# [기능 5] 특정 진단/검색 이력 단건 삭제 API
+@app.delete("/api/history/{history_id}")
+async def delete_user_history(history_id: str, username: str, db: Session = Depends(get_db)):
+    try:
+        if history_id.isdigit():
+            numeric_id = int(history_id)
+            history_item = db.query(DiagnosisHistory).filter(
+                DiagnosisHistory.id == numeric_id,
+                DiagnosisHistory.username == username
+            ).first()
+            
+            if history_item:
+                db.delete(history_item)
+                db.commit()
+        
+        return {
+            "success": True,
+            "message": "이력이 성공적으로 삭제되었습니다."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# [기능 5-2] 다중 진단/검색 이력 일괄 삭제 API 추가
+@app.post("/api/history/batch-delete")
+async def batch_delete_user_history(request: DeleteHistoryRequest, db: Session = Depends(get_db)):
+    try:
+        deleted_count = db.query(DiagnosisHistory).filter(
+            DiagnosisHistory.username == request.username,
+            DiagnosisHistory.id.in_(request.history_ids)
+        ).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"총 {deleted_count}개의 이력이 성공적으로 삭제되었습니다."
+        }
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

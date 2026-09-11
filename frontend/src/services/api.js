@@ -41,19 +41,36 @@ export const diagnosePart = async (formData) => {
 };
 
 /**
- * 5. 챗봇 및 매뉴얼 검색 API (carModel 파라미터 포함)
+ * 5. 챗봇 및 매뉴얼 검색 API (carModel, username 파라미터 포함)
  */
-export const sendChatMessage = async (message, partName = null, carModel = null) => {
+export const sendChatMessage = async (message, partName = null, carModel = null, username = null) => { // 👈 username 파라미터 추가
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
             message, 
             part_name: partName,
-            car_model: carModel // 👈 다차종 구분을 위해 차종 정보 전송
+            car_model: carModel,
+            username: username // 👈 백엔드로 username 전송 추가
         }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || '요청 처리 중 오류가 발생했습니다.');
     return data;
 };
+
+// 사용자별 진단 이력 조회
+export async function fetchUserHistory(username) {
+  const response = await axios.get(`http://localhost:8000/api/history`, {
+    params: { username }
+  });
+  return response.data;
+}
+
+// 진단 이력 삭제
+export async function deleteHistoryItemApi(historyId, username) {
+  const response = await axios.delete(`http://localhost:8000/api/history/${historyId}`, {
+    params: { username }
+  });
+  return response.data;
+}

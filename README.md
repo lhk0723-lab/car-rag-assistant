@@ -1,4 +1,4 @@
-AI Vehicle Maintenance Assistant (Local LLM & RAG)
+# AI Vehicle Maintenance Assistant (Local LLM & RAG)
 
 본 프로젝트는 외부 유료 API나 복잡한 클라우드 인프라 의존성 없이, Docker 환경에서 로컬 LLM(Ollama - Llama 3 / Llava 멀티모달 비전 모델)과 RAG(Retrieval-Augmented Generation, LangChain, ChromaDB) 기술을 유기적으로 결합하여 구동되는 독립형 AI 차량 정비 어시스턴트 시스템입니다.
 
@@ -44,7 +44,6 @@ B2B 및 서비스 생태계 관점의 가치 창출:
 - 정비 가이드 상세 이미지 에셋(manual_images/)과 런타임 동적 데이터(진단 이미지 영구 저장을 위한 uploads/, vector_db/, runs/)를 프로젝트 루트 레벨에서 안전하게 격리·관리하도록 구성했습니다.
 - requirements.txt에 FastAPI, Uvicorn, SQLAlchemy, PyJWT, bcrypt, python-multipart 등 모던 웹 서비스 구동을 위한 필수 패키지 의존성을 최신화하여 반영했습니다.
 
-
 4. 핵심 구현 기능 (Core Features)
 
 로컬 멀티모달 비전 정비 어시스턴트 및 대화형 RAG
@@ -53,6 +52,8 @@ B2B 및 서비스 생태계 관점의 가치 창출:
 
 서버 기반 이미지 영구 저장 및 사용자별 진단 이력 영속성 (Permanent Storage & History Persistence)
 - 서버 기반 이미지 영구 저장 및 최적화: 업로드 직후 화면에 임시로 표시되던 브라우저의 휘발성 blob: 주소 방식에서 벗어나, 백엔드 서버(uploads/ 디렉터리)에 진단 이미지를 물리적으로 안전하게 영구 저장하고 처리하는 로직을 구축했습니다. 프론트엔드 모달 및 채팅창 UI에서 이미지 경로 유실이나 404 에러 없이 상대·절대 경로가 안정적으로 렌더링되도록 개선했습니다.
+- 정비 이력 상세 조회 및 관리: 사용자가 수행했던 정비 진단 및 챗봇 내역을 [정비 이력 관리] 탭에서 한눈에 확인하고, 기록 클릭 시 당시의 상세 정비 가이드 및 대화 내용을 곧바로 복원(불러오기)할 수 있습니다.
+- 개별 이력 삭제 기능: 불필요하거나 지나간 정비 기록을 사용자가 직접 관리할 수 있도록 개별 삭제 버튼을 추가했습니다.
 - 사용자별 맞춤 진단 이력 영속성 강화: 진단 결과를 데이터베이스에 기록할 때 현재 로그인된 사용자의 고유 아이디(username)를 명확히 매칭하도록 연동하여, 사용자가 로그아웃 후 재로그인하거나 페이지를 새로고침하더라도 데이터베이스(app.db)를 통해 자신의 정비 진단 이력이 유실되지 않고 완벽하게 유지·복원되도록 구현했습니다.
 
 무중단 독립형 Docker 환경 구성
