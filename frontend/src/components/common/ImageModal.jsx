@@ -74,18 +74,24 @@ export default function ImageModal({ modalData, setModalData, handleModalPrev, h
           )}
 
           {/* 이미지 렌더링 (transform 적용) */}
-          <div className="w-full h-full flex items-center justify-center px-12 overflow-hidden">
-            <img 
-              src={modalData.list[modalData.index]} 
-              alt="확대 이미지" 
-              draggable="false"
-              style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${scale / 100})`,
-                transition: isDragging ? 'none' : 'transform 0.15s ease-out'
-              }}
-              className="max-h-full max-w-full object-contain rounded-lg shadow-lg" 
-            />
-          </div>
+<div className="w-full h-full flex items-center justify-center px-12 overflow-hidden">
+  {(() => {
+    const rawUrl = modalData.list[modalData.index] || "";
+    const finalSrc = rawUrl.startsWith("http") ? rawUrl : `http://localhost:8000${rawUrl}`;
+    return (
+      <img 
+        src={finalSrc} 
+        alt="확대 이미지" 
+        draggable="false"
+        style={{
+          transform: `translate(${position.x}px, ${position.y}px) scale(${scale / 100})`,
+          transition: isDragging ? 'none' : 'transform 0.15s ease-out'
+        }}
+        className="max-h-full max-w-full object-contain rounded-lg shadow-lg" 
+      />
+    );
+  })()}
+</div>
 
           {modalData.list.length > 1 && scale === 100 && (
             <button 

@@ -126,7 +126,13 @@ export default function DashboardPage() {
   };
 
   const openImageModal = (imgList, index = 0) => {
-    const formattedList = imgList.map(img => img.startsWith('http') ? img : `http://localhost:8000/${img}`);
+    const formattedList = imgList.map(img => {
+      if (!img) return '';
+      if (img.startsWith('blob:') || img.startsWith('http')) {
+        return img;
+      }
+      return `http://localhost:8000${img.startsWith('/') ? '' : '/'}${img}`;
+    });
     setModalData({ isOpen: true, list: formattedList, index });
   };
 
@@ -176,12 +182,30 @@ export default function DashboardPage() {
 
         if (diagData.success && diagData.detected_part) {
           const partName = diagData.detected_part;
-          setLastActivePart(partName); // 💡 이미지 진단 성공 시 최신 부품으로 갱신
+          setLastActivePart(partName); 
+          
+          // ⭐ 서버가 저장해준 영구 이미지 주소 적용
+          const permanentImageUrl = diagData.image_url 
+            ? (diagData.image_url.startsWith('http') ? diagData.image_url : `http://localhost:8000${diagData.image_url}`) 
+            : currentImagePreview;
           
           const aiResponseText = `🔍 [부품 인식 결과] 업로드하신 부품은 **${partName}**로 확인되었습니다. (${carModel} 맞춤)\n교체 방법을 원하시면 "${partName} 교체 방법"이라고 입력해 주세요!`;
-          setMessages([...newMsgList, { sender: 'ai', text: aiResponseText }]);
+          
+          const updatedMsgList = [...messages, { 
+            sender: 'user', 
+            text: userText || '부품 이미지 확인을 요청했습니다.',
+            image: permanentImageUrl 
+          }];
+          
+          setMessages([...updatedMsgList, { sender: 'ai', text: aiResponseText }]);
 
-          saveHistoryItem({ type: '부품 진단', title: partName, date: new Date().toLocaleString(), image: currentImagePreview, detailText: aiResponseText });
+          saveHistoryItem({ 
+            type: '부품 진단', 
+            title: partName, 
+            date: new Date().toLocaleString(), 
+            image: permanentImageUrl, 
+            detailText: aiResponseText 
+          });
         } else {
           setMessages([...newMsgList, { sender: 'ai', text: diagData.message || '부품을 명확히 인식하지 못했습니다.' }]);
         }

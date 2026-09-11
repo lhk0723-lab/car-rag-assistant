@@ -1,7 +1,7 @@
 import json
 import os
 import tempfile
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -10,7 +10,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from .database import engine, Base, get_db
-from .models import User
+from .models import User, DiagnosisHistory  # ⭐ DiagnosisHistory 모델 임포트 추가
 
 # 1. FastAPI 앱 인스턴스 생성 (타이틀과 버전 포함)
 app = FastAPI(title="Volvo XC60 AI Maintenance API", version="1.0")
@@ -44,7 +44,12 @@ BASE_DIR = Path(__file__).resolve().parent
 MANUAL_IMAGES_DIR = BASE_DIR.parent / "manual_images"
 app.mount("/manual_images", StaticFiles(directory=str(MANUAL_IMAGES_DIR)), name="manual_images")
 
-# 2. JSON 매뉴얼 파일들이 위치한 디렉토리 경로
+# ⭐ 2. backend/uploads 폴더 생성 및 정적 서빙 마운트 (이미지 영구 저장용)
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+# 3. JSON 매뉴얼 파일들이 위치한 디렉토리 경로
 MANUALS_DIR = BASE_DIR.parent / "manual"
 if not MANUALS_DIR.exists():
     MANUALS_DIR = BASE_DIR.parent / "manuals"
@@ -168,19 +173,36 @@ def search_manual_comprehensive(user_query: str, part_name: Optional[str] = None
 def root():
     return {"message": "Volvo XC60 AI Maintenance API is running."}
 
-# [기능 1] 이미지 업로드 및 YOLO 비전 진단
+# [기능 1] 이미지 업로드 및 YOLO 비전 진단 (⭐ 수정: uploads 폴더 영구 저장 및 DB 이력 기록 추가)
 @app.post("/api/diagnose")
-async def diagnose_part(file: UploadFile = File(...)):
+async def diagnose_part(
+    file: UploadFile = File(...),
+    username: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Invalid image file format.")
     
     temp_file_path = None
+    saved_file_url = None
     try:
         contents = await file.read()
+        
+        # 1. YOLO 분석용 임시 파일 생성
         with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as temp_file:
             temp_file.write(contents)
             temp_file_path = temp_file.name
             
+        # 2. backend/uploads 폴더에 파일 영구 물리 저장
+        import time
+        safe_filename = f"{int(time.time())}_{file.filename}"
+        permanent_file_path = UPLOAD_DIR / safe_filename
+        with open(permanent_file_path, "wb") as perm_file:
+            perm_file.write(contents)
+            
+        saved_file_url = f"/uploads/{safe_filename}"
+
+        # 3. YOLO 모델 분석 실행
         detected_class_name, display_image, confidence, error_msg = analyze_image_with_yolov8(
             temp_file_path, yolo_model
         )
@@ -194,11 +216,26 @@ async def diagnose_part(file: UploadFile = File(...)):
                 "message": f"인식 신뢰도({confidence:.1f}%)가 90% 미만이거나 등록되지 않은 부품입니다. 올바른 부품 사진을 업로드해주세요."
             }
         
+        response_message = f"업로드하신 부품은 해당 차량의 {detected_class_name}입니다. 교체 방법을 원하시면 \"{detected_class_name} 교체 방법 알려줘\"라고 입력해 주세요!"
+
+        # 4. SQLite (app.db) DB에 진단 이력 및 이미지 경로(image_url) 저장
+        if username:
+            db_history = DiagnosisHistory(
+                username=username,
+                detected_part=detected_class_name,
+                confidence=f"{confidence:.1f}%",
+                image_url=saved_file_url,
+                message=response_message
+            )
+            db.add(db_history)
+            db.commit()
+
         return {
             "success": True,
             "detected_part": detected_class_name,
             "confidence": confidence,
-            "message": f"업로드하신 부품은 해당 차량의 {detected_class_name}입니다. 교체 방법을 원하시면 \"{detected_class_name} 교체 방법 알려줘\"라고 입력해 주세요!"
+            "image_url": saved_file_url,  # 프론트엔드 모달 확대용 경로 전달
+            "message": response_message
         }
 
     except Exception as e:
@@ -292,3 +329,35 @@ async def update_user_settings(request: UserUpdateRequest, db: Session = Depends
         "nickname": updated_nickname,
         "car_model": updated_car_model
     }
+
+# [기능 4] 로그인한 사용자의 진단 및 채팅 이력 조회 API (⭐ 새로 추가)
+@app.get("/api/history")
+async def get_user_history(username: str, db: Session = Depends(get_db)):
+    try:
+        # 해당 유저의 이력을 최신순으로 조회
+        histories = db.query(DiagnosisHistory).filter(
+            DiagnosisHistory.username == username
+        ).order_by(DiagnosisHistory.created_at.desc()).all()
+        
+        history_list = []
+        for h in histories:
+            # 프론트엔드 모달/화면에서 바로 로드할 수 있도록 절대 경로(URL)로 변환
+            img_url = h.image_url
+            if img_url and not img_url.startswith("http"):
+                img_url = f"http://localhost:8000{img_url}"
+                
+            history_list.append({
+                "id": h.id,
+                "detected_part": h.detected_part,
+                "confidence": h.confidence,
+                "image_url": img_url,
+                "message": h.message,
+                "created_at": h.created_at.strftime("%Y-%m-%d %H:%M:%S") if h.created_at else None
+            })
+            
+        return {
+            "success": True,
+            "history": history_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

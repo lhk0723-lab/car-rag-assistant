@@ -15,3 +15,15 @@ class User(Base):
     created_at = Column(
         DateTime(timezone=True), server_default=func.now()
     )  # 가입일시
+
+
+class DiagnosisHistory(Base):
+    __tablename__ = "diagnosis_histories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True, nullable=True)  # 업로드한 유저 아이디 매칭
+    detected_part = Column(String, nullable=True)        # 진단된 부품명
+    confidence = Column(String, nullable=True)           # 인식 신뢰도
+    image_url = Column(String, nullable=True)            # 서버에 저장된 이미지 파일 경로 (예: /uploads/xxx.jpg)
+    message = Column(String, nullable=True)              # 진단 결과 메시지
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # 진단 일시
