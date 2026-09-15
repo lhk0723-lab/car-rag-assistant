@@ -199,10 +199,10 @@ async def diagnose_part(
         if error_msg:
             return {"success": False, "message": error_msg}
         
-        if confidence < 90.0:
+        if confidence < 60.0:
             return {
                 "success": False,
-                "message": f"인식 신뢰도({confidence:.1f}%)가 90% 미만이거나 등록되지 않은 부품입니다. 올바른 부품 사진을 업로드해주세요."
+                "message": f"인식 신뢰도({confidence:.1f}%)가 60% 미만이거나 등록되지 않은 부품입니다. 올바른 부품 사진을 업로드해주세요."
             }
         
         response_message = f"업로드하신 부품은 해당 차량의 {detected_class_name}입니다. 교체 방법을 원하시면 \"교체 방법\"이라고 입력해 주세요!"

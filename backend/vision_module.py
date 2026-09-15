@@ -19,7 +19,7 @@ def load_custom_model():
         return YOLO(str(model_path)) # YOLO는 문자열 경로를 받으므로 str()로 변환
     return None
 
-def analyze_image_with_yolov8(image_path, cabin_model, confidence_threshold=0.75):
+def analyze_image_with_yolov8(image_path, cabin_model, confidence_threshold=0.60):
     if not cabin_model:
         return None, None, 0.0, "YOLO 모델을 찾을 수 없습니다."
     

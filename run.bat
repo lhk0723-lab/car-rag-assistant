@@ -12,6 +12,9 @@ docker compose up --build -d
 echo 서버 안정화 및 AI 모델 로딩 대기 중 (15초)...
 timeout /t 15 > nul
 
+echo [부가 단계] 매뉴얼 벡터 DB(ChromaDB) 자동 구축 중...
+docker exec car-rag-app python backend/ingest.py
+
 echo LLaVA 비전 모델 확인 중...
 docker exec ollama-server ollama run llava
 

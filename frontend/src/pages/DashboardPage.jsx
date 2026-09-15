@@ -160,55 +160,38 @@ export default function DashboardPage() {
   const handleSelectHistoryItem = async (item) => {
     setActiveTab('assistant');
 
+    // 1. 이미지가 포함된 진단 이력인 경우
     if (item.image) {
       setMessages([
         { sender: 'user', text: `${item.title} 진단 기록 보기`, image: item.image },
         { sender: 'ai', text: item.detailText || `[이력 보기] ${item.title}에 대한 진단 기록입니다.` }
       ]);
-    } else {
-      const userQueryText = item.title || item.detected_part;
-      if (item.detected_part) {
-        setLastActivePart(item.detected_part);
-      }
-      
-      setMessages([
-        { sender: 'user', text: userQueryText }
-      ]);
-
-      setLoading(true);
-      try {
-        const chatData = await sendChatMessage(userQueryText, item.detected_part || undefined, carModel, currentUsername);
-
-        if (chatData.success && chatData.manual_data) {
-          const manual = chatData.manual_data;
-          const manualMsg = { 
-            sender: 'ai', 
-            type: 'manual', 
-            title: manual.title || manual.category || userQueryText,
-            steps: manual.steps || [],
-            manual_data: manual 
-          };
-          setMessages([
-            { sender: 'user', text: userQueryText },
-            manualMsg
-          ]);
-        } else {
-          const plainText = chatData.message || `'${userQueryText}'에 대한 가이드를 불러오지 못했습니다.`;
-          setMessages([
-            { sender: 'user', text: userQueryText },
-            { sender: 'ai', text: plainText }
-          ]);
-        }
-      } catch (err) {
-        console.error(err);
-        setMessages([
-          { sender: 'user', text: userQueryText },
-          { sender: 'ai', text: `[오류 발생] ${err.message}` }
-        ]);
-      } finally {
-        setLoading(false);
-      }
+      return;
     }
+
+    // 2. 이미지는 없지만 저장된 정비 가이드(manualData)가 있는 경우 (서버 재검색 안 함!)
+    if (item.manualData) {
+      setMessages([
+        { sender: 'user', text: item.title || '정비 가이드 다시 보기' },
+        item.manualData // 저장되어 있던 AI 매뉴얼 메시지 블록 그대로 출력
+      ]);
+      return;
+    }
+
+    // 3. 상세 텍스트(detailText)만 있는 일반 문의/검색 이력인 경우
+    if (item.detailText) {
+      setMessages([
+        { sender: 'user', text: item.title || '문의 이력 다시 보기' },
+        { sender: 'ai', text: item.detailText }
+      ]);
+      return;
+    }
+
+    // 4. 예외 처리
+    setMessages([
+      { sender: 'user', text: item.title || '이력 보기' },
+      { sender: 'ai', text: '저장된 상세 내용이 없습니다.' }
+    ]);
   };
 
   const handlePrevSlide = (key, maxLen) => {
@@ -311,6 +294,7 @@ export default function DashboardPage() {
             detailText: aiResponseText 
           });
         } else {
+          setLastActivePart(null);
           setMessages([...newMsgList, { sender: 'ai', text: diagData.message || '부품을 명확히 인식하지 못했습니다.' }]);
         }
       } else {
@@ -322,14 +306,22 @@ export default function DashboardPage() {
         // 단, 정말 직전에 사진을 올렸고 사용자가 "교환" 같은 짧은 후속타를 날린 경우에만 
         // 마지막으로 기억된 부품을 허용하고, 그 외에는 싹 초기화합니다.
         
-        const isVeryShortFollowUp = userText.length <= 4 && (userText.includes('교환') || userText.includes('방법') || userText.includes('알려줘'));
-        
-        let activePartToUse = undefined;
-        if (isVeryShortFollowUp && lastActivePart) {
-          activePartToUse = lastActivePart; // "교환" 같은 짧은 명령어일 때만 이전 사진 부품 맥락 유지
-        } else {
-          setLastActivePart(null); // 그 외 일반적인 텍스트 입력은 이전 기억을 완전히 리셋
-        }
+        // 💡 1회성 후속타 키워드 확인 (띄어쓰기 및 다양한 표현 허용, 4글자 제한 제거)
+const isShortFollowUp = 
+    userText.includes('교체') || 
+    userText.includes('교환') || 
+    userText.includes('바꾸') || 
+    userText.includes('방법') || 
+    userText.includes('알려줘');
+
+let activePartToUse = undefined;
+
+if (isShortFollowUp && lastActivePart) {
+    activePartToUse = lastActivePart; // 직전 사진 부품 맥락을 1회성으로 조합
+    setLastActivePart(null); // 🔥 사용 후 즉시 기억을 소모(리셋)하여 다음 대화와 꼬이지 않게 방지
+} else {
+    setLastActivePart(null); // 그 외 일반적인 텍스트 입력이나 새로운 검색 시 기존 기억 초기화
+}
 
         // 백엔드로 전송
         const chatData = await sendChatMessage(userText, activePartToUse, carModel, currentUsername);
@@ -344,13 +336,24 @@ export default function DashboardPage() {
           const manualMsg = { 
             sender: 'ai', 
             type: 'manual', 
-            title: manual.title || manual.category || userText,
+            title: manual.title || manual.category || userQueryText,
             steps: manual.steps || [],
             manual_data: manual 
           };
           
           setMessages([...newMsgList, manualMsg]);
-          saveHistoryItem({ type: '정비 가이드', title: userText, date: new Date().toLocaleString(), manualData: manualMsg });
+          
+          //  수정된 부분: 직전에 인식된 부품(activePartToUse)이 있다면 "부품명 (교체)" 형태로 타이틀 조합
+          const historyTitle = activePartToUse 
+            ? `${activePartToUse} (${userText})` 
+            : (manual.title || userText);
+
+          saveHistoryItem({ 
+            type: '정비 가이드', 
+            title: historyTitle, 
+            date: new Date().toLocaleString(), 
+            manualData: manualMsg 
+          });
         } else {
           const plainText = chatData.message || '답변을 생성하지 못했습니다.';
           setMessages([...newMsgList, { sender: 'ai', text: plainText }]);
