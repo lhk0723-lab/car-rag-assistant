@@ -6,7 +6,9 @@ services:
     build: .
     container_name: car-rag-app
     ports:
-      - "8000:8000"  # ⭐ 8501을 8000으로 변경!
+      - "8000:8000"
+    volumes:
+      - .:/app  # ⭐ 이 줄을 추가하여 로컬 프로젝트 루트(C:\DIY)와 도커 내부(/app)를 동기화합니다!
     environment:
       - OLLAMA_HOST=http://ollama:11434   # Ollama 컨테이너와 통신
     depends_on:

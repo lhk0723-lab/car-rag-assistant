@@ -56,17 +56,17 @@ export default function DashboardPage() {
 
   const [slideIndexes, setSlideIndexes] = useState({});
 
-  // ⭐ 히스토리 다중 선택 상태 추가
+  // 히스토리 다중 선택 상태 추가
   const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
 
-  // ⭐ 히스토리 개별 선택 토글 핸들러
+  // 히스토리 개별 선택 토글 핸들러
   const handleToggleSelectHistory = (id) => {
     setSelectedHistoryIds(prev => 
       prev.includes(id) ? prev.filter(itemid => itemid !== id) : [...prev, id]
     );
   };
 
-  // ⭐ 히스토리 전체 선택/해제 토글 핸들러
+  // 히스토리 전체 선택/해제 토글 핸들러
   const handleToggleSelectAll = (allIds) => {
     if (selectedHistoryIds.length === allIds.length) {
       setSelectedHistoryIds([]);
@@ -75,7 +75,7 @@ export default function DashboardPage() {
     }
   };
 
-  // ⭐ 선택된 항목 일괄 삭제 핸들러
+  // 선택된 항목 일괄 삭제 핸들러
   const handleDeleteSelected = async () => {
     try {
       selectedHistoryIds.forEach(id => {
@@ -88,7 +88,7 @@ export default function DashboardPage() {
     }
   };
 
-  // ⭐ 전체 삭제 핸들러
+  // 전체 삭제 핸들러
   const handleDeleteAll = () => {
     diagnosisHistory.forEach(item => {
       deleteHistoryItem(item.id);
@@ -121,8 +121,7 @@ export default function DashboardPage() {
         alert('사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
         return;
       }
-
-      // ⭐ 닉네임 입력란이 비어있다면 기존 닉네임을 유지하도록 처리 (강제 입력 방지)
+      
       const finalNickname = newNickname && newNickname.trim() ? newNickname.trim() : nickname;
 
       const response = await updateUserSetting({
@@ -157,6 +156,7 @@ export default function DashboardPage() {
     }
   };
 
+  // ⭐ [수정 완료] 새로고침 후 이력 조회 시 가이드와 이미지가 정상적으로 뜨도록 개선
   const handleSelectHistoryItem = async (item) => {
     setActiveTab('assistant');
 
@@ -169,16 +169,36 @@ export default function DashboardPage() {
       return;
     }
 
-    // 2. 이미지는 없지만 저장된 정비 가이드(manualData)가 있는 경우 (서버 재검색 안 함!)
-    if (item.manualData) {
+    // 2. 백엔드에서 steps 데이터가 함께 넘어온 경우 처리 (새로고침 직후 대응)
+    if (item.steps && item.steps.length > 0) {
+      const manualMsg = {
+        sender: 'ai',
+        type: 'manual',
+        title: item.title || item.detected_part || '정비 가이드',
+        steps: item.steps,
+        manual_data: {
+          title: item.title,
+          category: item.detected_part,
+          steps: item.steps
+        }
+      };
       setMessages([
         { sender: 'user', text: item.title || '정비 가이드 다시 보기' },
-        item.manualData // 저장되어 있던 AI 매뉴얼 메시지 블록 그대로 출력
+        manualMsg
       ]);
       return;
     }
 
-    // 3. 상세 텍스트(detailText)만 있는 일반 문의/검색 이력인 경우
+    // 3. 기존에 저장된 manualData가 있는 경우
+    if (item.manualData) {
+      setMessages([
+        { sender: 'user', text: item.title || '정비 가이드 다시 보기' },
+        item.manualData 
+      ]);
+      return;
+    }
+
+    // 4. 상세 텍스트(detailText)만 있는 일반 문의/검색 이력인 경우
     if (item.detailText) {
       setMessages([
         { sender: 'user', text: item.title || '문의 이력 다시 보기' },
@@ -187,7 +207,7 @@ export default function DashboardPage() {
       return;
     }
 
-    // 4. 예외 처리
+    // 5. 예외 처리
     setMessages([
       { sender: 'user', text: item.title || '이력 보기' },
       { sender: 'ai', text: '저장된 상세 내용이 없습니다.' }
@@ -298,33 +318,38 @@ export default function DashboardPage() {
           setMessages([...newMsgList, { sender: 'ai', text: diagData.message || '부품을 명확히 인식하지 못했습니다.' }]);
         }
       } else {
-        // 💡 핵심 아이디어: 
-        // 사진을 업로드해서 얻은 lastActivePart는 "오직 사진 직후의 짧은 대화(예: '교환', '방법')"에서만 1회성으로 쓰여야 합니다.
-        // 사용자가 직접 키보드로 텍스트를 입력해 보낸 경우에는, 이전 사진 기억을 굳이 강제로 엮지 않고 
-        // 사용자가 방금 타이핑한 텍스트(`userText`)를 최우선으로 검색하게 합니다.
+        // ⭐ [수정 완료] 완전히 새로운 주제(예: 와이퍼, 오일 등)를 입력하면 이전 부품 맥락을 끊어주어 타이틀이 꼬이지 않도록 개선
+        const isNewTopic = 
+          userText.includes('와이퍼') || 
+          userText.includes('오일') || 
+          userText.includes('타이어') || 
+          userText.includes('배터리') ||
+          userText.includes('브레이크');
 
-        // 단, 정말 직전에 사진을 올렸고 사용자가 "교환" 같은 짧은 후속타를 날린 경우에만 
-        // 마지막으로 기억된 부품을 허용하고, 그 외에는 싹 초기화합니다.
-        
-        // 💡 1회성 후속타 키워드 확인 (띄어쓰기 및 다양한 표현 허용, 4글자 제한 제거)
-const isShortFollowUp = 
-    userText.includes('교체') || 
-    userText.includes('교환') || 
-    userText.includes('바꾸') || 
-    userText.includes('방법') || 
-    userText.includes('알려줘');
+        const isShortFollowUp = 
+            !isNewTopic && (
+                userText.includes('교체') || 
+                userText.includes('교환') || 
+                userText.includes('바꾸') || 
+                userText.includes('방법') || 
+                userText.includes('알려줘')
+            );
 
-let activePartToUse = undefined;
+        let activePartToUse = undefined;
 
-if (isShortFollowUp && lastActivePart) {
-    activePartToUse = lastActivePart; // 직전 사진 부품 맥락을 1회성으로 조합
-    setLastActivePart(null); // 🔥 사용 후 즉시 기억을 소모(리셋)하여 다음 대화와 꼬이지 않게 방지
-} else {
-    setLastActivePart(null); // 그 외 일반적인 텍스트 입력이나 새로운 검색 시 기존 기억 초기화
-}
+        if (isShortFollowUp && lastActivePart) {
+            activePartToUse = lastActivePart; 
+            setLastActivePart(null); 
+        } else {
+            setLastActivePart(null); 
+        }
 
-        // 백엔드로 전송
-        const chatData = await sendChatMessage(userText, activePartToUse, carModel, currentUsername);
+        // 타이틀 조합: 새로운 주제이거나 일반 검색이면 사용자 입력 텍스트를 그대로 사용
+        const calculatedHistoryTitle = (activePartToUse && isShortFollowUp)
+          ? `${activePartToUse} (${userText})` 
+          : userText;
+
+        const chatData = await sendChatMessage(userText, activePartToUse, carModel, currentUsername, calculatedHistoryTitle);
 
         if (chatData.success && chatData.manual_data) {
           const manual = chatData.manual_data;
@@ -336,21 +361,16 @@ if (isShortFollowUp && lastActivePart) {
           const manualMsg = { 
             sender: 'ai', 
             type: 'manual', 
-            title: manual.title || manual.category || userQueryText,
+            title: manual.title || manual.category || userText,
             steps: manual.steps || [],
             manual_data: manual 
           };
           
           setMessages([...newMsgList, manualMsg]);
           
-          //  수정된 부분: 직전에 인식된 부품(activePartToUse)이 있다면 "부품명 (교체)" 형태로 타이틀 조합
-          const historyTitle = activePartToUse 
-            ? `${activePartToUse} (${userText})` 
-            : (manual.title || userText);
-
           saveHistoryItem({ 
             type: '정비 가이드', 
-            title: historyTitle, 
+            title: calculatedHistoryTitle, 
             date: new Date().toLocaleString(), 
             manualData: manualMsg 
           });

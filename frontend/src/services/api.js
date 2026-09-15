@@ -41,9 +41,9 @@ export const diagnosePart = async (formData) => {
 };
 
 /**
- * 5. 챗봇 및 매뉴얼 검색 API (carModel, username 파라미터 포함)
+ * 5. 챗봇 및 매뉴얼 검색 API (carModel, username, title 파라미터 포함)
  */
-export const sendChatMessage = async (message, partName = null, carModel = null, username = null) => { // 👈 username 파라미터 추가
+export const sendChatMessage = async (message, partName = null, carModel = null, username = null, title = null) => { 
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -51,7 +51,8 @@ export const sendChatMessage = async (message, partName = null, carModel = null,
             message, 
             part_name: partName,
             car_model: carModel,
-            username: username // 👈 백엔드로 username 전송 추가
+            username: username,
+            title: title 
         }),
     });
     const data = await response.json();

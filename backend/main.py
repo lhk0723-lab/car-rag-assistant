@@ -64,6 +64,7 @@ class QueryRequest(BaseModel):
     part_name: Optional[str] = None
     car_model: Optional[str] = None
     username: Optional[str] = None
+    title: Optional[str] = None
 
 # 사용자 설정 변경을 위한 Pydantic 모델
 class UserUpdateRequest(BaseModel):
@@ -213,7 +214,10 @@ async def diagnose_part(
                 detected_part=detected_class_name,
                 confidence=f"{confidence:.1f}%",
                 image_url=saved_file_url,
-                message=response_message
+                message=response_message,
+                type="부품 진단",                # 👈 뱃지는 '부품 진단'
+                title=detected_class_name,       # 👈 타이틀은 부품 이름 그대로 (뒤에 군더더기 붙이지 않음)
+                steps=[]                         # 이미지 진단은 스텝 없음
             )
             db.add(db_history)
             db.commit()
@@ -251,31 +255,36 @@ async def chat_manual(request: QueryRequest, db: Session = Depends(get_db)):
         matched_title = raw_manual.get("title", part_name or user_query)
         response_message = f"'{matched_title}' 정비 가이드를 조회했습니다."
 
-    if request.username:
-        history_title = raw_manual.get("title") if raw_manual else None
-        if not history_title:
-            history_title = part_name if part_name else user_query
-            
-        stored_part = history_title
+    # 1. 매뉴얼 이미지 URL 포맷팅을 먼저 안전하게 수행
+    formatted_manual = format_manual_images(raw_manual) if raw_manual else None
+
+    # 2. 로그인한 사용자(username)가 있는 경우에만 히스토리 저장
+    
+    if request.username and raw_manual:
+        # 프론트가 보내준 title이 있으면 그것을 쓰고, 없으면 기존 방식 사용
+        history_title = request.title or raw_manual.get("title") or part_name or user_query
 
         db_history = DiagnosisHistory(
             username=request.username,
-            detected_part=stored_part,
+            detected_part=part_name or user_query,
             confidence="텍스트 검색",
             image_url=None, 
-            message=response_message
+            message=response_message,
+            type="정비 가이드",
+            title=history_title,  # 👈 조합된 타이틀 저장
+            steps=formatted_manual.get("steps", [])
         )
         db.add(db_history)
         db.commit()
 
+    # 3. 검색 결과가 없을 경우 처리
     if not raw_manual:
         return {
             "success": False,
             "message": "입력하신 부품이나 관련된 정비 매뉴얼을 찾지 못했습니다."
         }
-        
-    formatted_manual = format_manual_images(raw_manual)
-    
+
+    # 4. 정상 응답 반환
     return {
         "success": True,
         "matched_category": formatted_manual.get("category"),
@@ -351,13 +360,29 @@ async def get_user_history(username: str, db: Session = Depends(get_db)):
             if img_url and not img_url.startswith("http"):
                 img_url = f"http://localhost:8000{img_url}"
                 
+            # 타입 결정
+            h_type = h.type
+            if not h_type:
+                h_type = "정비 가이드" if h.image_url is None else "부품 진단"
+
+            # 타이틀 결정 (DB에 저장된 h.title을 우선적으로 그대로 사용)
+            h_title = h.title
+            if not h_title:
+                if h_type == "부품 진단":
+                    h_title = h.detected_part
+                else:
+                    h_title = h.detected_part # 임의로 " 정비 가이드"를 붙이지 않음
+
             history_list.append({
                 "id": h.id,
                 "detected_part": h.detected_part,
                 "confidence": h.confidence,
                 "image_url": img_url,
                 "message": h.message,
-                "created_at": h.created_at.strftime("%Y-%m-%d %H:%M:%S") if h.created_at else None
+                "created_at": h.created_at.strftime("%Y-%m-%d %H:%M:%S") if h.created_at else None,
+                "type": h_type,
+                "title": h_title,
+                "steps": h.steps if h.steps else []
             })
             
         return {

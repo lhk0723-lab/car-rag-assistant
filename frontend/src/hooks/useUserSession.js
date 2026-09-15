@@ -47,11 +47,12 @@ export function useUserSession() {
           if (res.success && res.history) {
             const formattedHistory = res.history.map(item => ({
               id: item.id,
-              type: item.type || '부품 진단',
+              type: item.type || item.history_type || '부품 진단',
               title: item.title || item.detected_part || '진단 기록',
               date: item.created_at || item.date || new Date().toLocaleString(),
               image: item.image_url || item.image || null,
-              detailText: item.message || item.detailText || ''
+              detailText: item.message || item.detailText || '',
+              steps: item.steps || item.manual_data || []
             }));
             setDiagnosisHistory(formattedHistory);
           }

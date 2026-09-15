@@ -4,19 +4,27 @@ chcp 65001 > nul
 echo === AI Vehicle Maintenance Assistant 통합 실행기 ===
 echo.
 
+echo [클린업] 기존 컨테이너 정리 중...
+docker compose down
+if exist vector_db rmdir /s /q vector_db
+
+echo.
 echo ========================================================
-echo [1단계] 백엔드 및 AI 서버(Docker) 구동 시작
+echo [1단계] 로컬 환경에서 매뉴얼 벡터 DB(ChromaDB) 구축 중...
+echo ========================================================
+python backend/ingest.py
+
+echo.
+echo ========================================================
+echo [2단계] 백엔드 및 AI 서버(Docker) 구동 시작
 echo ========================================================
 docker compose up --build -d
 
 echo 서버 안정화 및 AI 모델 로딩 대기 중 (15초)...
 timeout /t 15 > nul
 
-echo [부가 단계] 매뉴얼 벡터 DB(ChromaDB) 자동 구축 중...
-docker exec car-rag-app python backend/ingest.py
-
-echo LLaVA 비전 모델 확인 중...
-docker exec ollama-server ollama run llava
+echo LLaVA 비전 모델 확인 및 다운로드 중...
+docker exec ollama-server ollama pull llava
 
 echo.
 echo --------------------------------------------------------
@@ -26,7 +34,7 @@ echo --------------------------------------------------------
 echo.
 
 echo ========================================================
-echo [2단계] 프론트엔드(React) 패키지 설치 및 실행 시작
+echo [3단계] 프론트엔드(React) 패키지 설치 및 실행 시작
 echo ========================================================
 cd frontend
 echo - npm 패키지 설치 중... (잠시만 기다려주세요)
@@ -44,6 +52,6 @@ echo --------------------------------------------------------
 echo.
 
 echo ========================================================
-echo 모든 서비스가 성공적으로 분리 구동되었습니다!
+echo 모든 서비스가 성공적으로 구동되었습니다!
 echo ========================================================
 pause
