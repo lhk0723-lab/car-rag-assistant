@@ -188,13 +188,26 @@ diy/ (최상위 루트)
 
 원클릭 통합 자동 실행 (권장)
 
-- Windows 환경에서는 루트 폴더에 포함된 run.bat 스크립트 하나로 기존 컨테이너 정리, 벡터 DB 자동 구축, 백엔드/AI 서버 구동, Ollama 모델 무인 검증, 프론트엔드 패키지 설치 및 서버 실행까지 전 과정을 원클릭으로 처리할 수 있습니다.
+- 운영체제(Windows/macOS)에 맞춘 통합 스크립트로 기존 컨테이너 정리, 벡터 DB 자동 구축, 백엔드/AI 서버 구동, Ollama 모델 무인 검증, 프론트엔드 패키지 설치 및 서버 실행까지 전 과정을 원클릭으로 처리할 수 있습니다.
+
+## Windows 환경
 
 1. 프로젝트 다운로드 경로로 이동합니다.
 
 2. run.bat 파일을 더블클릭하여 실행합니다.
 
-3. 웹 브라우저에서 아래 주소로 접속합니다.
+## macOS / Linux 환경
+
+1. 터미널을 열고 프로젝트 다운로드 폴더로 이동합니다.
+
+2. 스크립트 실행 권한을 부여합니다. (최초 1회 필요)
+- chmod +x run.sh
+- 검증: ls -l run.sh 입력 시 파일 권한 항목에 x(실행 권한)가 포함되었는지 확인합니다.
+
+3. run.sh 스크립트를 실행합니다.
+- ./run.sh
+
+## 웹 브라우저에서 아래 주소로 접속합니다.
 - 프론트엔드 웹 UI: http://localhost:5173
 - 백엔드 API 문서 (Swagger): http://localhost:8000/docs
 
@@ -204,7 +217,11 @@ diy/ (최상위 루트)
 - docker compose up --build -d
 
 2. 도커 컨테이너 내부에서 벡터 DB(ChromaDB) 초기 구축
+## windows
 - docker exec car-rag-app python backend/ingest.py
+
+## macOS / Linux
+- docker exec car-rag-app python3 backend/ingest.py
 
 3. 백엔드 서버 재시작 (생성된 벡터 DB 완벽 반영)
 - docker restart car-rag-app
