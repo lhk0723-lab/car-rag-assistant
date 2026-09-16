@@ -156,9 +156,17 @@ export default function DashboardPage() {
     }
   };
 
-  // ⭐ [수정 완료] 새로고침 후 이력 조회 시 가이드와 이미지가 정상적으로 뜨도록 개선
+  // ⭐ [수정 완료] 이력 선택 시 해당 부품의 맥락(lastActivePart)도 함께 복원되도록 개선
   const handleSelectHistoryItem = async (item) => {
     setActiveTab('assistant');
+
+    // 공통으로 활용할 수 있는 부품 이름 추출 (타이틀이나 카테고리 정보 활용)
+    const targetPart = item.detected_part || item.manualData?.manual_data?.category || item.title;
+    if (item.type === '부품 진단' || item.type === '정비 가이드') {
+      setLastActivePart(targetPart);
+    } else {
+      setLastActivePart(null);
+    }
 
     // 1. 이미지가 포함된 진단 이력인 경우
     if (item.image) {
