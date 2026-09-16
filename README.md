@@ -1,4 +1,4 @@
-# AI Vehicle Maintenance Assistant (Local LLM & RAG)
+# NEXUS — AI Vehicle Maintenance Assistant (Local LLM & RAG)
 
 본 프로젝트는 외부 유료 API나 복잡한 클라우드 인프라 의존성 없이, Docker 환경에서 로컬 LLM(Ollama - Llama 3 / Llava 멀티모달 비전 모델)과 RAG(Retrieval-Augmented Generation, LangChain, ChromaDB) 기술을 유기적으로 결합하여 구동되는 독립형 AI 차량 정비 어시스턴트 시스템입니다.
 
@@ -191,7 +191,9 @@ diy/ (최상위 루트)
 - Windows 환경에서는 루트 폴더에 포함된 run.bat 스크립트 하나로 기존 컨테이너 정리, 벡터 DB 자동 구축, 백엔드/AI 서버 구동, Ollama 모델 무인 검증, 프론트엔드 패키지 설치 및 서버 실행까지 전 과정을 원클릭으로 처리할 수 있습니다.
 
 1. 프로젝트 다운로드 경로로 이동합니다.
+
 2. run.bat 파일을 더블클릭하여 실행합니다.
+
 3. 웹 브라우저에서 아래 주소로 접속합니다.
 - 프론트엔드 웹 UI: http://localhost:5173
 - 백엔드 API 문서 (Swagger): http://localhost:8000/docs
@@ -199,20 +201,23 @@ diy/ (최상위 루트)
 수동 실행 방법 (Developer Manual)
 
 1. 백엔드 도커 컨테이너 빌드 및 구동 (캐시 없이 새로 빌드 시: docker compose build --no-cache)
-
 - docker compose up --build -d
 
-2. LLaVA 비전 모델 확인 및 다운로드
+2. 도커 컨테이너 내부에서 벡터 DB(ChromaDB) 초기 구축
+- docker exec car-rag-app python backend/ingest.py
 
+3. 백엔드 서버 재시작 (생성된 벡터 DB 완벽 반영)
+- docker restart car-rag-app
+
+4. LLaVA 비전 모델 확인 및 다운로드
 - docker exec ollama-server ollama pull llava
 
-3. 프론트엔드 구동
-
+5. 프론트엔드 구동
 - cd frontend
 - npm install
 - npm run dev
 
-4. 웹 브라우저 접속
+6. 웹 브라우저 접속
 
 - 접속 주소: http://localhost:5173/
 

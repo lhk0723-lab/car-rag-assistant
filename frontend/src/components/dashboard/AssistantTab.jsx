@@ -77,6 +77,11 @@ export default function AssistantTab({
         </div>
       </div>
 
+      <div className="px-6 py-2 bg-[#080c14] border-t border-gray-800/80 flex items-center gap-2 text-[15px] text-gray-400">
+        <span className="text-amber-400/90">⚠️</span>
+        <span className="font-medium">본 AI 가이드는 참고용이며, 작업 중 발생하는 차량 손상이나 안전사고에 대한 책임은 사용자에게 있습니다.</span>
+      </div>
+
       <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6">
         {messages.map((msg, index) => {
           const allMessageImages = [];

@@ -4,7 +4,8 @@ chcp 65001 > nul
 echo === AI Vehicle Maintenance Assistant 통합 실행기 ===
 echo.
 
-echo [클린업] 기존 컨테이너 정리 중...
+echo [클린업] 기존 컨테이너 및 잔여 리소스 정리 중...
+docker rm -f ollama-server car-rag-app 2>nul
 docker compose down
 if exist vector_db rmdir /s /q vector_db
 
@@ -28,7 +29,7 @@ docker exec ollama-server ollama pull llava
 
 echo.
 echo --------------------------------------------------------
-echo  [백엔드 & AI 서버 구동 완료!]
+echo [백엔드 & AI 서버 구동 완료!]
 echo  - 백엔드(Swagger) 접속 주소: http://localhost:8000/docs
 echo --------------------------------------------------------
 echo.
