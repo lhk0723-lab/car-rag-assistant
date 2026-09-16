@@ -111,9 +111,48 @@ export default function AssistantTab({
               <div className={`max-w-[85%] px-5 py-4 rounded-2xl text-sm leading-relaxed shadow-md ${msg.sender === 'user' ? 'bg-emerald-600 text-gray-950 font-medium rounded-tr-none' : 'bg-[#121826] text-gray-200 border border-gray-800/80 rounded-tl-none'}`}>
                 {msg.image && <div className="mb-3"><img src={msg.image} alt="첨부" onClick={() => openImageModal([msg.image], 0)} className="rounded-lg max-h-40 object-cover cursor-pointer hover:opacity-90 transition" /></div>}
                 {msg.type === 'manual' ? (
-                  <div className="space-y-4">
-                    <p className="font-bold text-emerald-400 border-b border-gray-800 pb-2 text-sm">📌 [정비 가이드: {msg.title}]</p>
-                    {msg.steps.map((step, sIdx) => {
+  <div className="space-y-4">
+    <p className="font-bold text-emerald-400 border-b border-gray-800 pb-2 text-sm">📌 [정비 가이드: {msg.title}]</p>
+    
+    {/* ⭐ 오른쪽 내용을 왼쪽 정렬로 통일하여 줄바꿈 시에도 일관성 있는 메타데이터 카드 */}
+{(() => {
+  const meta = msg.manual_data || msg;
+  if (!(meta.estimated_time || meta.difficulty || meta.tools_required || meta.recommended_interval)) return null;
+  
+  return (
+    <div className="bg-[#090d16]/90 p-4 rounded-xl border border-emerald-500/30 space-y-2 text-xs">
+      {meta.estimated_time && (
+        <div className="grid grid-cols-[84px_1fr] items-start gap-3">
+          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">작업 시간</span>
+          <span className="text-gray-200 text-left">{meta.estimated_time}</span>
+        </div>
+      )}
+
+      {meta.difficulty && (
+        <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
+          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">작업 난이도</span>
+          <span className="text-gray-200 text-left">{meta.difficulty}</span>
+        </div>
+      )}
+
+      {meta.tools_required && meta.tools_required.length > 0 && (
+        <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
+          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">필요 공구</span>
+          <span className="text-gray-200 text-left">{Array.isArray(meta.tools_required) ? meta.tools_required.join(', ') : meta.tools_required}</span>
+        </div>
+      )}
+
+      {meta.recommended_interval && (
+        <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
+          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">교체 주기</span>
+          <span className="text-gray-300 text-left">{meta.recommended_interval}</span>
+        </div>
+      )}
+    </div>
+  );
+})()}
+
+    {msg.steps.map((step, sIdx) => {
                       let imgList = [];
                       const rawImg = step.images || step.image_list || step.image || step.image_url || step.photo_url;
                       if (Array.isArray(rawImg)) {
