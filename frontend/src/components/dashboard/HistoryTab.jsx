@@ -18,7 +18,7 @@ export default function HistoryTab({
   return (
     <div className="flex-1 flex flex-col bg-[#0d1322]/70 border border-gray-800/80 rounded-2xl shadow-2xl p-6 overflow-y-auto space-y-4">
       
-      {/* 상단 타이틀 및 다중 제어 버튼 영역 */}
+      
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-gray-800">
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
           <History className="text-emerald-400" /> 정비 진단 및 검색 이력
@@ -32,7 +32,7 @@ export default function HistoryTab({
               className="text-xs text-gray-300 hover:text-emerald-400 flex items-center gap-1.5 px-3 py-1.5 bg-[#090d16] border border-gray-800 rounded-lg transition"
             >
               {isAllSelected ? <CheckSquare size={14} className="text-emerald-400" /> : <Square size={14} />}
-              전체 선택 ({selectedHistoryIds.length}/{safeHistory.length})
+              선택 ({selectedHistoryIds.length}/{safeHistory.length})
             </button>
 
             {/* 선택 삭제 버튼 */}

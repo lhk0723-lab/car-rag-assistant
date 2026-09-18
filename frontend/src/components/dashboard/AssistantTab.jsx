@@ -1,5 +1,47 @@
-import React, { useRef } from 'react';
-import { Bot, User, ImageIcon, X, Send, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { User, ImageIcon, X, Send, ChevronLeft, ChevronRight } from 'lucide-react';
+
+
+function ThumbnailScrollBox({ imgList, currentIdx, onSelectThumb }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const buttons = containerRef.current.querySelectorAll('button');
+      const selectedEl = buttons[currentIdx];
+      if (selectedEl) {
+        selectedEl.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest'
+        });
+      }
+    }
+  }, [currentIdx]);
+
+  return (
+    <div className="w-full mt-3 pt-2 border-t border-gray-800/80">
+      <div className="w-full overflow-x-auto pb-1 no-scrollbar" ref={containerRef}>
+        <div className="flex items-center gap-2 px-3 min-w-max justify-start">
+          {imgList.map((thumb, tIdx) => (
+            <button
+              key={tIdx}
+              type="button"
+              onClick={() => onSelectThumb(tIdx)}
+              className={`w-12 h-10 rounded-lg overflow-hidden border-2 transition shrink-0 ${currentIdx === tIdx ? 'border-emerald-400 scale-105 shadow-md ring-2 ring-emerald-500/20' : 'border-gray-700 opacity-60 hover:opacity-100'}`}
+            >
+              <img 
+                src={thumb.startsWith('http') ? thumb : `http://localhost:8000/${thumb}`} 
+                alt="썸네일" 
+                className="w-full h-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AssistantTab({
   carModel,
@@ -16,17 +58,23 @@ export default function AssistantTab({
   handlePrevSlide,
   handleNextSlide,
   setSlideIndexes,
-  lastActivePart // ⭐ 추가: 현재 기억된 부품 이름 전달받기
+  lastActivePart
 }) {
   const chatContainerRef = useRef(null);
 
-  const scrollToBottom = () => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: 'smooth'
+  useEffect(() => {
+    if (messages.length > 0 && chatContainerRef.current) {
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = 0;
+        }
       });
     }
+  }, [messages]);
+
+  const formatImgUrl = (img) => {
+    if (!img || typeof img !== 'string' || img.trim() === '') return null;
+    return img.startsWith('http') ? img : `http://localhost:8000/${img}`;
   };
 
   const scrollToUserQuery = () => {
@@ -40,11 +88,6 @@ export default function AssistantTab({
         });
       }
     }
-  };
-
-  const handleDiagnoseClick = (e) => {
-    handleSendMessage(e, 'diagnose');
-    setTimeout(scrollToBottom, 100);
   };
 
   const handleImageChange = (e) => {
@@ -64,25 +107,29 @@ export default function AssistantTab({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0d1322]/70 border border-gray-800/80 rounded-2xl shadow-2xl backdrop-blur-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-800/80 bg-[#0d1322] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20"><Bot className="w-5 h-5" /></div>
-          <div>
-            <h4 className="text-sm font-semibold text-white">AI 정비 어시스턴트 ({carModel} 맞춤 최적화)</h4>
-            <p className="text-[11px] text-gray-400">
-              {lastActivePart ? `현재 감지된 부품: [ ${lastActivePart} ] (이어서 질문하면 자동으로 조합됩니다)` : '사진 첨부 시 부품 이름 확인, 텍스트 입력 시 RAG 정비 가이드를 제공합니다.'}
-            </p>
-          </div>
+    
+    <div className="flex-1 flex flex-col bg-[#0d1322]/70 border border-gray-800/80 rounded-2xl shadow-2xl py-6 overflow-hidden">
+      
+      
+      <div className="px-6 pb-4 border-b border-gray-800/80 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            {carModel} AI 어시스턴트
+          </h3>
+          <p className="text-xs text-gray-400 mt-1">
+            사진 업로드 시 부품 이름 확인, 텍스트 입력 시 RAG 정비 가이드를 제공합니다.
+          </p>
         </div>
       </div>
 
-      <div className="px-6 py-2 bg-[#080c14] border-t border-gray-800/80 flex items-center gap-2 text-[15px] text-gray-400">
-        <span className="text-amber-400/90">⚠️</span>
+      
+      <div className="mx-6 my-4 px-4 py-3 bg-[#090d16] rounded-xl border border-gray-800 flex items-center gap-2 text-xs text-gray-400">
+        <span className="text-amber-400/90 text-sm">⚠️</span>
         <span className="font-medium">본 AI 가이드는 참고용이며, 작업 중 발생하는 차량 손상이나 안전사고에 대한 책임은 사용자에게 있습니다.</span>
       </div>
 
-      <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-6">
+      
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-6 px-6">
         {messages.map((msg, index) => {
           const allMessageImages = [];
           if (msg.type === 'manual' && msg.steps) {
@@ -90,79 +137,95 @@ export default function AssistantTab({
               const rImg = st.images || st.image_list || st.image || st.image_url || st.photo_url;
               if (Array.isArray(rImg)) {
                 rImg.forEach(img => {
-                  if (img && typeof img === 'string' && img.trim() !== '') {
-                    allMessageImages.push(img.startsWith('http') ? img : `http://localhost:8000/${img}`);
-                  }
+                  const formatted = formatImgUrl(img);
+                  if (formatted) allMessageImages.push(formatted);
                 });
-              } else if (typeof rImg === 'string' && rImg.trim() !== '') {
-                allMessageImages.push(rImg.startsWith('http') ? rImg : `http://localhost:8000/${rImg}`);
+              } else {
+                const formatted = formatImgUrl(rImg);
+                if (formatted) allMessageImages.push(formatted);
               }
             });
           }
 
+          const isUser = msg.sender === 'user';
+
           return (
             <div 
               key={index} 
-              className={`message-item ${msg.sender === 'user' ? 'user-message-item pt-4 pb-2' : ''} flex items-start gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
+              className={`message-item ${isUser ? 'user-message-item pt-2 pb-1 flex flex-row-reverse' : 'w-full'} flex items-start gap-3`}
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.sender === 'user' ? 'bg-emerald-500 text-gray-950 font-bold' : 'bg-[#121826] text-emerald-400 border border-gray-800'}`}>
-                {msg.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-              </div>
-              <div className={`max-w-[85%] px-5 py-4 rounded-2xl text-sm leading-relaxed shadow-md ${msg.sender === 'user' ? 'bg-emerald-600 text-gray-950 font-medium rounded-tr-none' : 'bg-[#121826] text-gray-200 border border-gray-800/80 rounded-tl-none'}`}>
-                {msg.image && <div className="mb-3"><img src={msg.image} alt="첨부" onClick={() => openImageModal([msg.image], 0)} className="rounded-lg max-h-40 object-cover cursor-pointer hover:opacity-90 transition" /></div>}
+              {isUser && (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-emerald-500 text-gray-950 font-bold">
+                  <User className="w-4 h-4" />
+                </div>
+              )}
+
+              <div className={`px-5 py-4 rounded-2xl text-sm leading-relaxed shadow-md ${isUser ? 'bg-emerald-600 text-gray-950 font-medium rounded-tr-none max-w-[85%]' : 'bg-[#121826] text-gray-200 border border-gray-800/80 rounded-xl w-full'}`}>
+                {msg.image && (
+                  <div className="mb-3">
+                    <img 
+                      src={msg.image} 
+                      alt="첨부" 
+                      onClick={() => openImageModal([msg.image], 0)} 
+                      className="rounded-lg max-h-40 object-cover cursor-pointer hover:opacity-90 transition" 
+                    />
+                  </div>
+                )}
+                
                 {msg.type === 'manual' ? (
-  <div className="space-y-4">
-    <p className="font-bold text-emerald-400 border-b border-gray-800 pb-2 text-sm">📌 [정비 가이드: {msg.title}]</p>
-    
-    {/* ⭐ 오른쪽 내용을 왼쪽 정렬로 통일하여 줄바꿈 시에도 일관성 있는 메타데이터 카드 */}
-{(() => {
-  const meta = msg.manual_data || msg;
-  if (!(meta.estimated_time || meta.difficulty || meta.tools_required || meta.recommended_interval)) return null;
-  
-  return (
-    <div className="bg-[#090d16]/90 p-4 rounded-xl border border-emerald-500/30 space-y-2 text-xs">
-      {meta.estimated_time && (
-        <div className="grid grid-cols-[84px_1fr] items-start gap-3">
-          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">작업 시간</span>
-          <span className="text-gray-200 text-left">{meta.estimated_time}</span>
-        </div>
-      )}
+                  <div className="space-y-4">
+                    <p className="font-bold text-emerald-400 border-b border-gray-800 pb-2 text-sm">📌 [정비 가이드: {msg.title}]</p>
+                    
+                    {(() => {
+                      const meta = msg.manual_data || msg;
+                      if (!(meta.estimated_time || meta.difficulty || meta.tools_required || meta.recommended_interval)) return null;
+                      
+                      return (
+                        <div className="bg-[#090d16]/90 p-4 rounded-xl border border-emerald-500/30 space-y-2 text-xs">
+                          {meta.estimated_time && (
+                            <div className="grid grid-cols-[84px_1fr] items-start gap-3">
+                              <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">작업 시간</span>
+                              <span className="text-gray-200 text-left">{meta.estimated_time}</span>
+                            </div>
+                          )}
 
-      {meta.difficulty && (
-        <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
-          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">작업 난이도</span>
-          <span className="text-gray-200 text-left">{meta.difficulty}</span>
-        </div>
-      )}
+                          {meta.difficulty && (
+                            <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
+                              <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">작업 난이도</span>
+                              <span className="text-gray-200 text-left">{meta.difficulty}</span>
+                            </div>
+                          )}
 
-      {meta.tools_required && meta.tools_required.length > 0 && (
-        <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
-          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">필요 공구</span>
-          <span className="text-gray-200 text-left">{Array.isArray(meta.tools_required) ? meta.tools_required.join(', ') : meta.tools_required}</span>
-        </div>
-      )}
+                          {meta.tools_required && meta.tools_required.length > 0 && (
+                            <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
+                              <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">필요 공구</span>
+                              <span className="text-gray-200 text-left">{Array.isArray(meta.tools_required) ? meta.tools_required.join(', ') : meta.tools_required}</span>
+                            </div>
+                          )}
 
-      {meta.recommended_interval && (
-        <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
-          <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">교체 주기</span>
-          <span className="text-gray-300 text-left">{meta.recommended_interval}</span>
-        </div>
-      )}
-    </div>
-  );
-})()}
+                          {meta.recommended_interval && (
+                            <div className="grid grid-cols-[84px_1fr] items-start gap-3 pt-1.5 border-t border-gray-800/80">
+                              <span className="text-emerald-400 font-semibold text-left whitespace-nowrap">교체 주기</span>
+                              <span className="text-gray-300 text-left">{meta.recommended_interval}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
-    {msg.steps.map((step, sIdx) => {
+                    {msg.steps.map((step, sIdx) => {
                       let imgList = [];
                       const rawImg = step.images || step.image_list || step.image || step.image_url || step.photo_url;
                       if (Array.isArray(rawImg)) {
-                        imgList = rawImg;
-                      } else if (typeof rawImg === 'string' && rawImg.trim() !== '') {
-                        imgList = [rawImg];
+                        imgList = rawImg.map(img => formatImgUrl(img)).filter(Boolean);
+                      } else {
+                        const formatted = formatImgUrl(rawImg);
+                        if (formatted) imgList = [formatted];
                       }
                       
                       const slideKey = `${index}-${sIdx}`;
                       const currentIdx = slideIndexes[slideKey] || 0;
+                      const activeImg = imgList[currentIdx];
 
                       return (
                         <div key={sIdx} className="bg-[#090d16]/80 p-4 rounded-xl border border-gray-800 space-y-3">
@@ -170,68 +233,51 @@ export default function AssistantTab({
                           
                           {imgList.length > 0 && (
                             <div className="mt-3 space-y-2">
-                              <div className="relative rounded-xl overflow-hidden border border-emerald-500/30 bg-black/50 p-2 flex flex-col items-center">
-                                <div className="w-full flex items-center justify-between">
+                              <div className="relative rounded-xl overflow-hidden border border-emerald-500/30 bg-black/50 p-3 flex flex-col items-center">
+                                <div className="relative w-full h-56 flex justify-center items-center bg-black/40 rounded-xl overflow-hidden">
                                   {imgList.length > 1 && (
-                                    <button 
-                                      type="button" 
-                                      onClick={() => handlePrevSlide(slideKey, imgList.length)}
-                                      className="p-2 bg-[#121826]/90 hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700 rounded-lg transition shadow z-10"
-                                      title="이전 사진 보기"
-                                    >
-                                      <ChevronLeft className="w-4 h-4" />
-                                    </button>
+                                    <>
+                                      <button 
+                                        type="button" 
+                                        onClick={() => handlePrevSlide(slideKey, imgList.length)}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/70 hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700/80 rounded-full transition shadow-md z-20"
+                                        title="이전 사진"
+                                      >
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button 
+                                        type="button" 
+                                        onClick={() => handleNextSlide(slideKey, imgList.length)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/70 hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700/80 rounded-full transition shadow-md z-20"
+                                        title="다음 사진"
+                                      >
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
                                   )}
 
-                                  <div className="flex-1 flex justify-center overflow-hidden px-2">
-                                    <img 
-                                      src={imgList[currentIdx].startsWith('http') ? imgList[currentIdx] : `http://localhost:8000/${imgList[currentIdx]}`} 
-                                      alt={`작업 가이드 사진 ${currentIdx + 1}`} 
-                                      onClick={() => {
-                                        const clickedImgPath = imgList[currentIdx];
-                                        const formattedPath = clickedImgPath.startsWith('http') ? clickedImgPath : `http://localhost:8000/${clickedImgPath}`;
-                                        const globalIdx = allMessageImages.indexOf(formattedPath);
-                                        openImageModal(allMessageImages, globalIdx !== -1 ? globalIdx : 0);
-                                      }}
-                                      className="max-h-48 object-contain cursor-zoom-in rounded transition-all duration-300" 
-                                    />
-                                  </div>
-
-                                  {imgList.length > 1 && (
-                                    <button 
-                                      type="button" 
-                                      onClick={() => handleNextSlide(slideKey, imgList.length)}
-                                      className="p-2 bg-[#121826]/90 hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700 rounded-lg transition shadow z-10"
-                                      title="다음 사진 보기"
-                                    >
-                                      <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                  )}
+                                  <img 
+                                    src={activeImg} 
+                                    alt="작업 가이드 사진" 
+                                    onClick={() => {
+                                      const globalIdx = allMessageImages.indexOf(activeImg);
+                                      openImageModal(allMessageImages, globalIdx !== -1 ? globalIdx : 0);
+                                    }}
+                                    className="w-full h-full object-contain cursor-zoom-in rounded transition-all duration-300" 
+                                  />
                                 </div>
 
                                 {imgList.length > 1 && (
-                                  <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-800/80 w-full overflow-x-auto pb-1 justify-center">
-                                    {imgList.map((thumb, tIdx) => (
-                                      <button
-                                        key={tIdx}
-                                        type="button"
-                                        onClick={() => setSlideIndexes(prev => ({ ...prev, [slideKey]: tIdx }))}
-                                        className={`w-12 h-10 rounded-lg overflow-hidden border-2 transition shrink-0 ${currentIdx === tIdx ? 'border-emerald-400 scale-105 shadow-md' : 'border-gray-700 opacity-60 hover:opacity-100'}`}
-                                      >
-                                        <img 
-                                          src={thumb.startsWith('http') ? thumb : `http://localhost:8000/${thumb}`} 
-                                          alt={`썸네일 ${tIdx + 1}`} 
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </button>
-                                    ))}
-                                  </div>
+                                  <ThumbnailScrollBox 
+                                    imgList={imgList}
+                                    currentIdx={currentIdx}
+                                    onSelectThumb={(tIdx) => setSlideIndexes(prev => ({ ...prev, [slideKey]: tIdx }))}
+                                  />
                                 )}
-                              </div>
 
-                              <div className="flex items-center justify-between text-[11px] text-gray-400 px-1">
-                                <span>이미지를 클릭하면 큰 화면으로 확대됩니다.</span>
-                                {imgList.length > 1 && <span className="text-emerald-400 font-medium">총 {imgList.length}장의 사진 중 {currentIdx + 1}번째</span>}
+                                <div className="flex items-center justify-end text-[11px] px-1 mt-2 w-full">
+                                  <span className="text-emerald-400 font-medium">총 {imgList.length}장의 사진 중 {currentIdx + 1}번째</span>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -239,32 +285,28 @@ export default function AssistantTab({
                       );
                     })}
                   </div>
-                ) : <div className="whitespace-pre-line">{msg.text}</div>}
+                ) : (
+                  <div className="whitespace-pre-line">{msg.text}</div>
+                )}
               </div>
             </div>
           );
         })}
-        {loading && <div className="text-gray-400 text-xs px-11 animate-pulse">AI가 내용을 분석하고 있습니다...</div>}
+        {loading && <div className="text-gray-400 text-xs animate-pulse">AI가 내용을 분석하고 있습니다...</div>}
       </div>
 
-      <form onSubmit={handleTextSubmit} className="p-4 border-t border-gray-800/80 bg-[#0d1322]/50 flex flex-col gap-2.5">
+      
+      <form onSubmit={handleTextSubmit} className="mt-4 pt-4 px-6 border-t border-gray-800/80 flex flex-col gap-2.5">
         {previewUrl && (
           <div className="flex items-center justify-between bg-[#090d16] px-4 py-2.5 rounded-xl border border-emerald-500/40 shadow-md">
             <div className="flex items-center gap-3">
               <img src={previewUrl} alt="미리보기" className="w-12 h-12 object-cover rounded-lg border border-emerald-500/30 cursor-pointer" onClick={() => openImageModal([previewUrl], 0)} />
               <div>
                 <span className="text-xs text-emerald-400 font-bold block">부품 이미지 첨부완료</span>
-                <span className="text-[11px] text-gray-400">아래 버튼을 눌러 정밀 부품 이름을 확인하세요.</span>
+                <span className="text-[11px] text-gray-400">우측의 전송 버튼을 눌러 정밀 부품 이름을 확인하세요.</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button 
-                type="button" 
-                onClick={handleDiagnoseClick} 
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5"
-              >
-                <Sparkles className="w-3.5 h-3.5" /> 부품 이름 확인
-              </button>
               <button type="button" onClick={() => { setSelectedImage(null); setPreviewUrl(null); }} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-rose-400 transition">
                 <X className="w-4 h-4" />
               </button>
@@ -279,13 +321,15 @@ export default function AssistantTab({
             <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
           </label>
           <input 
-            type="text" 
-            value={inputMessage} 
-            onChange={(e) => setInputMessage(e.target.value)} 
-            placeholder={lastActivePart ? `${lastActivePart} 관련 내용을 질문해보세요 (예: 교체 방법)...` : `${carModel} 정비 관련 내용을 질문해보세요...`} 
-            className="flex-1 bg-[#090d16] border border-gray-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white" 
-          />
-          <button type="submit" disabled={loading} className="p-3 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold rounded-xl transition shadow"><Send className="w-5 h-5" /></button>
+  type="text" 
+  value={inputMessage} 
+  onChange={(e) => setInputMessage(e.target.value)} 
+  placeholder="입력 예시 : [부품 이름] 교체 방법" 
+  className="flex-1 bg-[#090d16] border border-gray-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white" 
+/>
+          <button type="submit" disabled={loading} className="p-3 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold rounded-xl transition shadow">
+            <Send className="w-5 h-5" />
+          </button>
         </div>
       </form>
     </div>

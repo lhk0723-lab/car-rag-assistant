@@ -1,5 +1,42 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { FileText, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+
+function ThumbnailScrollBox({ imgList, currentIdx, onSelectThumb }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const buttons = containerRef.current.querySelectorAll('button');
+      const selectedEl = buttons[currentIdx];
+      if (selectedEl) {
+        selectedEl.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest'
+        });
+      }
+    }
+  }, [currentIdx]);
+
+  return (
+    <div className="w-full mt-3 pt-2 border-t border-gray-800/80">
+      <div className="w-full overflow-x-auto pb-1 no-scrollbar" ref={containerRef}>
+        <div className="flex items-center gap-2 px-3 min-w-max justify-start">
+          {imgList.map((thumb, tIdx) => (
+            <button
+              key={tIdx}
+              type="button"
+              onClick={() => onSelectThumb(tIdx)}
+              className={`w-12 h-10 rounded-lg overflow-hidden border-2 transition shrink-0 ${currentIdx === tIdx ? 'border-emerald-400 scale-105 shadow-md ring-2 ring-emerald-500/20' : 'border-gray-700 opacity-60 hover:opacity-100'}`}
+            >
+              <img src={thumb.startsWith('http') ? thumb : `http://localhost:8000/${thumb}`} alt="썸네일" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ManualsTab({
   carModel,
@@ -14,30 +51,52 @@ export default function ManualsTab({
   setSlideIndexes,
   openImageModal
 }) {
-  // 현재 화면에 보여지는 모든 매뉴얼 결과의 이미지를 하나의 배열로 통합 추출
+  // 💡 메인 스크롤 박스 참조를 위한 useRef
+  const scrollContainerRef = useRef(null);
+
+  // 💡 데이터가 변경될 때 렌더링 직후 스크롤을 무조건 맨 위(0)로 강제 고정
+  useEffect(() => {
+    if (manualResults.length > 0 && scrollContainerRef.current) {
+      // 레이아웃이 완전히 그려진 직후 안전하게 맨 위로 이동하도록 틱 조절
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = 0;
+        }
+      });
+    }
+  }, [manualResults]);
+
+  const formatImgUrl = (img) => {
+    if (!img || typeof img !== 'string' || img.trim() === '') return null;
+    return img.startsWith('http') ? img : `http://localhost:8000/${img}`;
+  };
+
   const allImages = [];
   manualResults.forEach(res => {
     res.steps?.forEach(step => {
       const rawImg = step.images || step.image_list || step.image || step.image_url || step.photo_url;
       if (Array.isArray(rawImg)) {
         rawImg.forEach(img => {
-          if (img && typeof img === 'string' && img.trim() !== '') {
-            allImages.push(img.startsWith('http') ? img : `http://localhost:8000/${img}`);
-          }
+          const formatted = formatImgUrl(img);
+          if (formatted) allImages.push(formatted);
         });
-      } else if (typeof rawImg === 'string' && rawImg.trim() !== '') {
-        allImages.push(rawImg.startsWith('http') ? rawImg : `http://localhost:8000/${rawImg}`);
+      } else {
+        const formatted = formatImgUrl(rawImg);
+        if (formatted) allImages.push(formatted);
       }
     });
   });
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0d1322]/70 border border-gray-800/80 rounded-2xl shadow-2xl p-6 overflow-y-auto space-y-6">
+    <div 
+      ref={scrollContainerRef} 
+      className="flex-1 flex flex-col bg-[#0d1322]/70 border border-gray-800/80 rounded-2xl shadow-2xl p-6 overflow-y-auto space-y-6"
+    >
       <div>
         <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <FileText className="text-emerald-400" /> {carModel} 정비 매뉴얼 아카이브
+          <FileText className="text-emerald-400" /> {carModel} 정비 매뉴얼
         </h3>
-        <p className="text-xs text-gray-400 mt-1">자주 찾는 소모품 버튼을 클릭하거나 직접 검색하여 공식 정비 가이드를 즉시 확인하세요.</p>
+        <p className="text-xs text-gray-400 mt-1">자주 찾는 소모품 버튼을 클릭하거나 직접 검색하여 정비 가이드를 즉시 확인하세요.</p>
       </div>
 
       <div className="bg-[#090d16] p-4 rounded-xl border border-gray-800 space-y-2.5">
@@ -61,11 +120,11 @@ export default function ManualsTab({
           value={manualQuery} 
           onChange={(e) => setManualQuery(e.target.value)} 
           onKeyDown={(e) => e.key === 'Enter' && executeManualSearch()}
-          placeholder="정확한 검색어를 입력하세요 (예: 먼지필터 교체방법 등)" 
+          placeholder="(예: 먼지필터 교체방법)" 
           className="flex-1 bg-[#090d16] border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500 outline-none" 
         />
         <button onClick={() => executeManualSearch()} disabled={searchingManual} className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-bold rounded-xl transition flex items-center gap-2">
-          <Search className="w-4 h-4" /> 검색
+          <Search className="w-4 h-4" /> 
         </button>
       </div>
 
@@ -81,12 +140,15 @@ export default function ManualsTab({
                 let imgList = [];
                 const rawImg = step.images || step.image_list || step.image || step.image_url || step.photo_url;
                 if (Array.isArray(rawImg)) {
-                  imgList = rawImg;
-                } else if (typeof rawImg === 'string' && rawImg.trim() !== '') {
-                  imgList = [rawImg];
+                  imgList = rawImg.map(img => formatImgUrl(img)).filter(Boolean);
+                } else {
+                  const formatted = formatImgUrl(rawImg);
+                  if (formatted) imgList = [formatted];
                 }
+
                 const slideKey = `manual-${idx}-${sIdx}`;
                 const currentIdx = slideIndexes[slideKey] || 0;
+                const activeImg = imgList[currentIdx];
 
                 return (
                   <div key={sIdx} className="bg-[#121826] p-4 rounded-lg border border-gray-800 space-y-3 text-sm text-gray-300">
@@ -96,47 +158,49 @@ export default function ManualsTab({
                     </div>
                     
                     {imgList.length > 0 && (
-                      <div className="relative rounded-xl overflow-hidden border border-emerald-500/30 bg-black/50 p-2 flex flex-col items-center mt-2">
-                        <div className="w-full flex items-center justify-between">
+                      <div className="relative rounded-xl overflow-hidden border border-emerald-500/30 bg-black/50 p-3 flex flex-col items-center mt-2">
+                        <div className="relative w-full h-56 flex justify-center items-center bg-black/40 rounded-xl overflow-hidden">
                           {imgList.length > 1 && (
-                            <button type="button" onClick={() => handlePrevSlide(slideKey, imgList.length)} className="p-2 bg-[#090d16] hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700 rounded-lg transition shadow z-10">
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
+                            <>
+                              <button 
+                                type="button" 
+                                onClick={() => handlePrevSlide(slideKey, imgList.length)} 
+                                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/70 hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700/80 rounded-full transition shadow-md z-20"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => handleNextSlide(slideKey, imgList.length)} 
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/70 hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700/80 rounded-full transition shadow-md z-20"
+                              >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
-                          <div className="flex-1 flex justify-center overflow-hidden px-2">
-                            <img 
-                              src={imgList[currentIdx].startsWith('http') ? imgList[currentIdx] : `http://localhost:8000/${imgList[currentIdx]}`} 
-                              alt="매뉴얼 도해" 
-                              onClick={() => {
-                                const clickedImgPath = imgList[currentIdx];
-                                const formattedPath = clickedImgPath.startsWith('http') ? clickedImgPath : `http://localhost:8000/${clickedImgPath}`;
-                                const globalIdx = allImages.indexOf(formattedPath);
-                                openImageModal(allImages, globalIdx !== -1 ? globalIdx : 0);
-                              }}
-                              className="max-h-44 object-contain cursor-zoom-in rounded" 
-                            />
-                          </div>
-                          {imgList.length > 1 && (
-                            <button type="button" onClick={() => handleNextSlide(slideKey, imgList.length)} className="p-2 bg-[#090d16] hover:bg-emerald-500 text-gray-200 hover:text-gray-950 border border-gray-700 rounded-lg transition shadow z-10">
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                          )}
+                          
+                          <img 
+                            src={activeImg} 
+                            alt="매뉴얼 도해" 
+                            onClick={() => {
+                              const globalIdx = allImages.indexOf(activeImg);
+                              openImageModal(allImages, globalIdx !== -1 ? globalIdx : 0);
+                            }}
+                            className="w-full h-full object-contain cursor-zoom-in rounded transition-all duration-300" 
+                          />
                         </div>
 
                         {imgList.length > 1 && (
-                          <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-800/80 w-full overflow-x-auto pb-1 justify-center">
-                            {imgList.map((thumb, tIdx) => (
-                              <button
-                                key={tIdx}
-                                type="button"
-                                onClick={() => setSlideIndexes(prev => ({ ...prev, [slideKey]: tIdx }))}
-                                className={`w-12 h-10 rounded-lg overflow-hidden border-2 transition shrink-0 ${currentIdx === tIdx ? 'border-emerald-400 scale-105 shadow-md' : 'border-gray-700 opacity-60 hover:opacity-100'}`}
-                              >
-                                <img src={thumb.startsWith('http') ? thumb : `http://localhost:8000/${thumb}`} alt="썸네일" className="w-full h-full object-cover" />
-                              </button>
-                            ))}
-                          </div>
+                          <ThumbnailScrollBox 
+                            imgList={imgList}
+                            currentIdx={currentIdx}
+                            onSelectThumb={(tIdx) => setSlideIndexes(prev => ({ ...prev, [slideKey]: tIdx }))}
+                          />
                         )}
+
+                        <div className="flex items-center justify-end text-[11px] px-1 mt-2 w-full">
+                          <span className="text-emerald-400 font-medium">총 {imgList.length}장의 사진 중 {currentIdx + 1}번째</span>
+                        </div>
                       </div>
                     )}
                   </div>

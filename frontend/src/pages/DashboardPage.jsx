@@ -28,6 +28,8 @@ export default function DashboardPage() {
 
   const [activeTab, setActiveTab] = useState('assistant');
   
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   
@@ -156,7 +158,7 @@ export default function DashboardPage() {
     }
   };
 
-  // ⭐ [수정 완료] 이력 선택 시 해당 부품의 맥락(lastActivePart)도 함께 복원되도록 개선
+  // [수정 완료] 이력 선택 시 해당 부품의 맥락(lastActivePart)도 함께 복원되도록 개선
   const handleSelectHistoryItem = async (item) => {
     setActiveTab('assistant');
 
@@ -326,7 +328,7 @@ export default function DashboardPage() {
           setMessages([...newMsgList, { sender: 'ai', text: diagData.message || '부품을 명확히 인식하지 못했습니다.' }]);
         }
       } else {
-        // ⭐ [수정 완료] 완전히 새로운 주제(예: 와이퍼, 오일 등)를 입력하면 이전 부품 맥락을 끊어주어 타이틀이 꼬이지 않도록 개선
+        // [수정 완료] 완전히 새로운 주제(예: 와이퍼, 오일 등)를 입력하면 이전 부품 맥락을 끊어주어 타이틀이 꼬이지 않도록 개선
         const isNewTopic = 
           userText.includes('와이퍼') || 
           userText.includes('오일') || 
@@ -421,11 +423,25 @@ export default function DashboardPage() {
   return (
     <div className="flex h-screen bg-[#090d16] text-gray-100 font-sans overflow-hidden">
       
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} carModel={carModel} />
+      {/* 💡 Sidebar에 isOpen 및 onClose 전달 */}
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        carModel={carModel}
+        handleLogout={handleLogout} 
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
         
-        <Header carModel={carModel} nickname={nickname} handleLogout={handleLogout} />
+        {/* 💡 Header에 onOpenSidebar 전달 */}
+        <Header 
+          carModel={carModel} 
+          nickname={nickname} 
+          handleLogout={handleLogout} 
+          onOpenSidebar={() => setIsSidebarOpen(true)}
+        />
 
         <main className="flex-1 p-6 flex flex-col overflow-hidden bg-[#090d16]">
           
